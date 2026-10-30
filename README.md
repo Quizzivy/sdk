@@ -55,6 +55,8 @@ the gate asks for a new minor (while 0.x) when that release breaks the contract.
 
 1. Release PR into `main` sets `info.version` and runs `make gen`.
 2. The owner pushes the tag `vX.Y.Z` here: `publish.yml` publishes `X.Y.Z` under `next`.
+   When the contract is the same as `latest` apart from `info.version`, nothing
+   is published (D-080) and api and web keep pinning the version they have.
 3. api and web pin `X.Y.Z` in their own release PRs.
 4. Once the API deploy is live, the api repository's deploy sends
    `repository_dispatch` (`promote-sdk`, with the version its commit pins) and
@@ -64,6 +66,11 @@ the gate asks for a new minor (while 0.x) when that release breaks the contract.
 
 So `latest` is always a contract production serves, and `next` is the newest
 contract on `develop` or the release waiting for its deploy.
+
+`latest` follows the deployed API both ways: rolling the API back to a commit
+that pins an older release moves `latest` back to it too. GitHub runs
+`repository_dispatch` and the manual run from the workflow file on the default
+branch, `develop`.
 
 ## Using the package
 

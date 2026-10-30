@@ -9,7 +9,10 @@ name: Publish
 #
 # Nothing here publishes under `latest`: promote.yml moves a release there
 # once the API that serves it is live (D-081). Publishing is idempotent: a
-# version already in the registry is left as it is.
+# version already in the registry is left as it is, and a -dev version is
+# stamped with its commit's time, so a re-run names the same version. A
+# release whose contract is the same as `latest` is not published (D-080):
+# clients keep the version they pin.
 on:
   push:
     branches: [develop]
@@ -41,7 +44,11 @@ jobs:
       contents: read
       packages: write
     steps:
+      # No credentials left in git config: a later step runs a tool fetched at
+      # run time, and the job's token can write packages.
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -65,7 +72,7 @@ jobs:
             version=$release
           else
             IFS=. read -r major minor patch <<< "$release"
-            stamp=$(date -u +%Y%m%d%H%M)
+            stamp=$(TZ=UTC git show -s --format=%cd --date=format-local:%Y%m%d%H%M HEAD)
             # The g keeps an all-digit short sha from reading as a number,
             # which semver refuses with a leading zero.
             version="$major.$minor.$((patch + 1))-dev.$stamp.g$(git rev-parse --short=7 HEAD)"
@@ -74,8 +81,22 @@ jobs:
             echo "$PACKAGE@$version is already published; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          latest=$(npm view "$PACKAGE" dist-tags.latest 2>/dev/null || true)
+          if [ "$REF_TYPE" = tag ] && [ -n "$latest" ]; then
+            mkdir -p "$RUNNER_TEMP/latest"
+            npm pack "$PACKAGE@$latest" --pack-destination "$RUNNER_TEMP/latest" >/dev/null
+            tar -xzf "$RUNNER_TEMP"/latest/*.tgz -C "$RUNNER_TEMP/latest"
+            # info.version always differs between two releases, so compare the rest.
+            if node -e '
+              const read = (p) => { const d = JSON.parse(require("fs").readFileSync(p, "utf8")); delete d.info.version; return JSON.stringify(d); };
+              process.exit(read(process.argv[1]) === read(process.argv[2]) ? 0 : 1);
+            ' "$RUNNER_TEMP/latest/package/openapi.json" sdk/openapi.json; then
+              echo "The contract is the same as $PACKAGE@$latest; nothing to publish. api and web keep pinning $latest." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "latest=$(npm view "$PACKAGE" dist-tags.latest 2>/dev/null || true)" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-go@v7
         if: steps.version.outputs.version != '' && steps.version.outputs.latest != ''
@@ -89,6 +110,7 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           LATEST: ${{ steps.version.outputs.latest }}
         run: |
+          [ -d "$RUNNER_TEMP/latest/package" ] && exit 0
           mkdir -p "$RUNNER_TEMP/latest"
           npm pack "$PACKAGE@$LATEST" --pack-destination "$RUNNER_TEMP/latest" >/dev/null
           tar -xzf "$RUNNER_TEMP"/latest/*.tgz -C "$RUNNER_TEMP/latest"
