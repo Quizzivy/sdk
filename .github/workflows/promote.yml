@@ -82,9 +82,13 @@ jobs:
           for attempt in 1 2 3 4 5; do
             rm -rf client && mkdir client && cd client
             npm init -y >/dev/null
-            npm install "$PACKAGE@latest" --no-audit --no-fund --prefer-online >/dev/null
-            got=$(node -p "require('$PACKAGE/package.json').version")
-            contract=$(node --input-type=module -e "import { CONTRACT_VERSION } from '$PACKAGE'; console.log(CONTRACT_VERSION)")
+            # A failed install counts as one more attempt, not the end of the step.
+            if npm install "$PACKAGE@latest" --no-audit --no-fund --prefer-online >/dev/null; then
+              got=$(node -p "require('$PACKAGE/package.json').version")
+              contract=$(node --input-type=module -e "import { CONTRACT_VERSION } from '$PACKAGE'; console.log(CONTRACT_VERSION)")
+            else
+              got="nothing (npm install failed)" contract=""
+            fi
             cd ..
             if [ "$got" = "$VERSION" ] && [ "$contract" = "$VERSION" ]; then
               echo "A fresh install of $PACKAGE@latest gives $VERSION." | tee -a "$GITHUB_STEP_SUMMARY"
