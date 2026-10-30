@@ -81,13 +81,21 @@ jobs:
           VERSION: ${{ github.event.client_payload.version || inputs.version }}
         working-directory: ${{ runner.temp }}
         run: |
-          mkdir client && cd client
-          npm init -y >/dev/null
-          npm install "$PACKAGE@latest" --no-audit --no-fund >/dev/null
-          got=$(node -p "require('$PACKAGE/package.json').version")
-          contract=$(node --input-type=module -e "import { CONTRACT_VERSION } from '$PACKAGE'; console.log(CONTRACT_VERSION)")
-          if [ "$got" != "$VERSION" ] || [ "$contract" != "$VERSION" ]; then
-            echo "::error title=Promote::a fresh install of $PACKAGE@latest gave $got (CONTRACT_VERSION $contract), not $VERSION."
-            exit 1
-          fi
-          echo "A fresh install of $PACKAGE@latest gives $VERSION." | tee -a "$GITHUB_STEP_SUMMARY"
+          # The registry can serve the old dist-tags for a moment after a move,
+          # so a fresh project is tried a few times before the step fails.
+          for attempt in 1 2 3 4 5; do
+            rm -rf client && mkdir client && cd client
+            npm init -y >/dev/null
+            npm install "$PACKAGE@latest" --no-audit --no-fund --prefer-online >/dev/null
+            got=$(node -p "require('$PACKAGE/package.json').version")
+            contract=$(node --input-type=module -e "import { CONTRACT_VERSION } from '$PACKAGE'; console.log(CONTRACT_VERSION)")
+            cd ..
+            if [ "$got" = "$VERSION" ] && [ "$contract" = "$VERSION" ]; then
+              echo "A fresh install of $PACKAGE@latest gives $VERSION." | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Attempt $attempt: $PACKAGE@latest installed $got (CONTRACT_VERSION $contract)."
+            sleep 10
+          done
+          echo "::error title=Promote::a fresh install of $PACKAGE@latest gave $got (CONTRACT_VERSION $contract), not $VERSION."
+          exit 1
