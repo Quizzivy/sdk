@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "types": ["vitest/globals", "node"],
+    // Our own code is fully checked; scripts/sdk/tests/consumer.test.mjs
+    // checks the package's .d.ts files with skipLibCheck off.
+    "skipLibCheck": true,
+
+    "moduleResolution": "bundler",
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    // The tests import the package by name, as any client does.
+    "paths": { "@quizzivy/sdk": ["./sdk/index.d.ts"], "@tests/*": ["./tests/*"] },
+
+    /* The same strictness as the web, where these tests came from. */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["tests", "vitest.config.ts"]
+}

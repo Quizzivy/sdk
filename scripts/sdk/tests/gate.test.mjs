@@ -27,10 +27,9 @@ if (command === 'breaking' && process.env.STUB_BREAKING) { console.log('- remove
 const contract = (version, marker) => `openapi: 3.1.0\ninfo:\n  title: T\n  version: ${version}\n  x-note:\n    marker: ${marker}\npaths: {}\n`;
 
 let counter = 0;
-function repo({ baseVersion = '0.13.2', headVersion = '0.13.2', web = '0.13.2', change = true } = {}) {
+function repo({ baseVersion = '0.13.2', headVersion = '0.13.2', change = true } = {}) {
   const dir = join(root, `r${counter++}`);
   mkdirSync(join(dir, 'api'), { recursive: true });
-  mkdirSync(join(dir, 'web'));
   const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' });
   const commit = (message) => {
     git('add', '-A');
@@ -38,11 +37,9 @@ function repo({ baseVersion = '0.13.2', headVersion = '0.13.2', web = '0.13.2', 
   };
   git('init', '-q', '-b', 'develop');
   writeFileSync(join(dir, 'api/openapi.yaml'), contract(baseVersion, 'branchpoint'));
-  writeFileSync(join(dir, 'web/package.json'), JSON.stringify({ version: web }));
   commit('branch point');
   git('checkout', '-q', '-b', 'feature');
   if (change) writeFileSync(join(dir, 'api/openapi.yaml'), contract(headVersion, 'head'));
-  writeFileSync(join(dir, 'web/package.json'), JSON.stringify({ version: web }));
   commit('feature');
   // The base moves on after the branch point: diffing against its tip would
   // read this as the feature removing it.
@@ -91,13 +88,12 @@ test('a breaking change without the label fails only when the gate blocks', () =
 });
 
 test('the release rules apply only with SDK_RELEASE', () => {
-  const dir = repo({ headVersion: '0.13.2', web: '0.13.3' });
+  const dir = repo({ headVersion: '0.13.2' });
   assert.equal(gate(dir, { SDK_GATE: 'block' }).status, 0);
   const release = gate(dir, { SDK_GATE: 'block', SDK_RELEASE: 'true' });
   assert.equal(release.status, 1);
-  assert.match(release.stdout, /must equal web\/package.json/);
   assert.match(release.stdout, /still 0\.13\.2/);
-  const good = gate(repo({ headVersion: '0.13.3', web: '0.13.3' }), { SDK_GATE: 'block', SDK_RELEASE: 'true' });
+  const good = gate(repo({ headVersion: '0.13.3' }), { SDK_GATE: 'block', SDK_RELEASE: 'true' });
   assert.equal(good.status, 0, good.stdout);
 });
 

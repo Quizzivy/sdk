@@ -1,0 +1,18 @@
+{
+  "name": "quizzivy-sdk-repo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "gen": "node scripts/sdk/gen.mjs api sdk"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.11",
+    "yaml": "^2.9.0"
+  }
+}

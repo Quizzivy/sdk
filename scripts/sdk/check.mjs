@@ -49,11 +49,19 @@ export function versionOf(yaml) {
   return version ? version[1] : null;
 }
 
+/** isLower reports whether version a sorts before version b. */
+export function isLower(a, b) {
+  const [x, y] = [parseVersion(a), parseVersion(b)];
+  if (!x || !y) return false;
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] < y[i];
+  return false;
+}
+
 /**
  * violationsOf applies the D-080 rules to one diff and returns what breaks
  * them, as sentences. `breaking` is whether oasdiff found an ERR.
  */
-export function violationsOf({ changed, breaking, labelled, release, baseVersion, headVersion, webVersion }) {
+export function violationsOf({ changed, breaking, labelled, release, baseVersion, headVersion }) {
   const out = [];
   if (breaking && !labelled) {
     out.push(
@@ -61,8 +69,10 @@ export function violationsOf({ changed, breaking, labelled, release, baseVersion
     );
   }
   if (!release) return out;
-  if (headVersion !== webVersion) {
-    out.push(`info.version (${headVersion}) must equal web/package.json's version (${webVersion}) in a release.`);
+  // The api and web repositories pin this version in their own release PRs
+  // (D-082); here the version only has to move forward.
+  if (isLower(headVersion, baseVersion)) {
+    out.push(`info.version (${headVersion}) is lower than ${baseVersion}, the version already published from main.`);
   }
   if (changed && headVersion === baseVersion) {
     out.push(`the contract changed but info.version is still ${baseVersion}, the version already published from main.`);
@@ -109,7 +119,6 @@ function main() {
   const baseText = git('show', `${mergeBase}:${CONTRACT}`);
   const headVersion = versionOf(head);
   const baseVersion = versionOf(baseText);
-  const webVersion = JSON.parse(readFileSync('web/package.json', 'utf8')).version;
   const changed = head !== baseText;
 
   say(`## SDK contract check`);
@@ -153,7 +162,7 @@ function main() {
     say();
   }
 
-  const violations = violationsOf({ changed, breaking, labelled, release, baseVersion, headVersion, webVersion });
+  const violations = violationsOf({ changed, breaking, labelled, release, baseVersion, headVersion });
   if (violations.length === 0) {
     say(breaking ? `Breaking, and labelled \`${LABEL}\`.` : 'Nothing breaks the SDK rules.');
   } else {

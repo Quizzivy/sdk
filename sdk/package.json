@@ -1,12 +1,12 @@
 {
   "name": "@quizzivy/sdk",
   "version": "0.13.2",
-  "description": "The Quizzivy API contract: the OpenAPI document and TypeScript types generated from it. Types and constants only, no runtime client.",
+  "description": "The Quizzivy API contract: the OpenAPI document, the TypeScript types generated from it, and the test data and catalogs the server and its clients agree on. Types and constants only, no runtime client.",
   "license": "UNLICENSED",
   "type": "module",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Quizzivy/Quizzivy.git",
+    "url": "git+https://github.com/Quizzivy/sdk.git",
     "directory": "sdk"
   },
   "publishConfig": {
@@ -21,6 +21,8 @@
     },
     "./openapi.json": "./openapi.json",
     "./openapi.yaml": "./openapi.yaml",
+    "./testdata/*": "./testdata/*",
+    "./catalogs/*": "./catalogs/*",
     "./package.json": "./package.json"
   },
   "files": [
@@ -31,6 +33,8 @@
     "schema.d.ts",
     "openapi.json",
     "openapi.yaml",
+    "testdata",
+    "catalogs",
     "README.md"
   ]
 }
