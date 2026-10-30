@@ -65,12 +65,8 @@ jobs:
             echo "$PACKAGE@$VERSION is already \`latest\`; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
+          # The next step proves the move took, with retries.
           npm dist-tag add "$PACKAGE@$VERSION" latest
-          after=$(npm view "$PACKAGE" dist-tags.latest)
-          if [ "$after" != "$VERSION" ]; then
-            echo "::error title=Promote::the registry still reports latest = $after after moving it to $VERSION."
-            exit 1
-          fi
           echo "\`latest\` moved from ${current:-nothing} to $PACKAGE@$VERSION (asked by $SOURCE)." | tee -a "$GITHUB_STEP_SUMMARY"
 
       # What a client gets: install @latest into an empty project, as the api
