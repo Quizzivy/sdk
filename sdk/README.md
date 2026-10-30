@@ -1,7 +1,8 @@
 # @quizzivy/sdk
 
 The Quizzivy API contract as a package: `api/openapi.yaml` and what is generated
-from it, for any client of the API. Types and constants only; it has no
+from it, for any client of the API, plus the test data and catalogs the server
+and its clients agree on. Types and constants only; it has no
 runtime client and no dependencies. ESM only (`"type": "module"`), so a
 CommonJS TypeScript project imports it with `import type` or a dynamic
 `import()`. Decisions D-080 and D-081.
@@ -12,36 +13,30 @@ CommonJS TypeScript project imports it with `import type` or a dynamic
 | `schema.d.ts` | `paths`, `operations`, `components` (openapi-typescript) |
 | `operations.js` / `.d.ts` | `OPERATIONS` (every operationId with its method and path), `OperationId`, and `CONTRACT_VERSION` (the contract's `info.version`) |
 | `index.js` / `.d.ts` | the entry point, re-exporting the above (hand-written) |
+| `testdata/*.json` | fixtures both sides test against: `@quizzivy/sdk/testdata/pasted-text-counts.json` and the rest |
+| `catalogs/*.json` | agreements that are data: `audit-actions.json`, `join-code.json` (`api/catalogs/README.md`) |
 
 Everything except `index.*`, this README and `package.json`'s fields other than
-`version` is written by `make gen`. Never edit it by hand: change
+`version` is written by `make gen`, from this repository's `api/` directory. Never edit it by hand: change
 `api/openapi.yaml` and run `make gen`. CI fails on drift.
 
 ## Versions
 
 The SDK's version is the app release its contract ships in: `info.version` in
-`api/openapi.yaml`, set only in the release PR next to `web/package.json`'s
-version. Releases only add to the contract, so **SDK X works with any server at
-X or later**. A release that has to break the contract bumps the minor while
-0.x (the major from 1.0), and a patch hotfix never breaks it.
+`api/openapi.yaml`, set only in the release PR. Releases only add to the
+contract, so **SDK X works with any server at X or later**. A release that has
+to break the contract bumps the minor while 0.x (the major from 1.0), and a
+patch hotfix never breaks it.
 
-| Branch | Published as | dist-tag |
+| Published from | Version | dist-tag |
 |---|---|---|
-| `main`, once production serves it | the release, when the version and the contract are new | `latest` |
-| `develop` | for example `0.13.3-dev.202610281200.gabc1234`, on pushes that change `api/openapi.yaml` | `next` |
+| a push to `develop` that changes `api/` or `sdk/` | for example `0.13.3-dev.202610281200.gabc1234` | `next` |
+| the tag `vX.Y.Z` | `X.Y.Z` | `next` |
+| `promote.yml`, once the API serving `X.Y.Z` is live | (no new version) | `latest` moves to `X.Y.Z` |
 
-`.github/workflows/sdk-publish.yml` publishes to GitHub Packages, only from the
-Quizzivy org. A release publishes from `deploy.yml`, after the API is live, so no
-client adopts a contract production does not serve yet (D-081). A `-dev`
-version's `CONTRACT_VERSION` is still the release it builds on. The first
-release after the SDK landed is the first under `latest`; until then the
-registry may show a `-dev` as `latest`, so pin `next` or wait for it.
-
-## In this repository
-
-The web links the package (`"@quizzivy/sdk": "link:../sdk"`) and imports the
-types through `web/src/lib/api/schema.ts`, so a contract change is one PR and
-`make gen`, with nothing to publish or install.
+No client adopts a contract production does not serve yet (D-081). A `-dev`
+version's `CONTRACT_VERSION` is still the release it builds on. The steps are
+in the [repository README](../README.md#releases).
 
 ## In another repository
 
@@ -52,7 +47,7 @@ types through `web/src/lib/api/schema.ts`, so a contract change is one PR and
 ```
 
 ```jsonc
-// package.json
+// package.json: pin an exact version; the api and web repositories do
 "devDependencies": { "@quizzivy/sdk": "0.14.0" },
 "scripts": {
   // "gen sdk": take the newest release and let the compiler say what changed
@@ -85,8 +80,10 @@ openapi-generator-cli generate -i package/openapi.yaml -g dart -o lib/api   # or
 
 ## Changing the contract
 
+The order across repositories is in the [repository README](../README.md#changing-the-api).
+
 1. Edit `api/openapi.yaml`, then `make gen`, and commit the generated files.
-2. `make sdk-check` (also run by CI's Contract job on PRs, when the job is not skipped as already passed) reports
+2. `make sdk-check` (also run by CI's Contract job on every PR) reports
    breaking changes since the merge-base with `SDK_BASE` (default
    `origin/develop`), plus the changelog.
 3. A breaking change needs the `contract-breaking` label, a D-entry or the
