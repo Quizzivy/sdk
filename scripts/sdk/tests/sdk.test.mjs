@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { bumpsBreaking, isLower, parseVersion, versionOf, violationsOf } from '../check.mjs';
-import { operationsOf, renderModule, versionOf as documentVersion, withVersion } from '../gen.mjs';
+import { jsonOf, operationsOf, renderModule, versionOf as documentVersion, withVersion } from '../gen.mjs';
 
 const doc = (paths, version = '1.2.3') => ({ info: { version }, paths });
 
@@ -104,6 +104,15 @@ test('isLower orders versions numerically, not as text', () => {
   assert.equal(isLower('0.13.10', '0.13.9'), false);
   assert.equal(isLower('1.0.0', '1.0.0'), false);
   assert.equal(isLower('garbage', '1.0.0'), false);
+});
+
+test('jsonOf keeps the order the contract is written in', () => {
+  const json = jsonOf('openapi: 3.1.0\ninfo:\n  version: 1.2.3\n  title: T\npaths: {}\n');
+  assert.equal(json, '{\n  "openapi": "3.1.0",\n  "info": {\n    "version": "1.2.3",\n    "title": "T"\n  },\n  "paths": {}\n}\n');
+});
+
+test('the committed openapi.json is the committed openapi.yaml', () => {
+  assert.equal(readFileSync('sdk/openapi.json', 'utf8'), jsonOf(readFileSync('api/openapi.yaml', 'utf8')));
 });
 
 test('the committed operation map has exactly one entry per operationId in the contract', async () => {
