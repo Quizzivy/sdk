@@ -1,11 +1,13 @@
 #!/usr/bin/env node
-// Writes the generated half of the @quizzivy/sdk package (D-080) from the
-// contract: the YAML and JSON documents, the operation map and the version.
-// `make gen` runs it after cmd/gencontract and before openapi-typescript.
-//   gen.mjs <openapi.yaml> <openapi.json> <sdk directory>
-import { copyFileSync, readFileSync, writeFileSync } from 'node:fs';
+// Writes the generated half of the @quizzivy/sdk package (D-080, D-082) from
+// the contract in api/: the YAML and JSON documents, the operation map, the
+// version, and the shared test data and catalogs both sides test against.
+// `make gen` runs it before openapi-typescript.
+//   gen.mjs <contract directory> <sdk directory>
+import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 
 const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
 
@@ -84,17 +86,32 @@ export function withVersion(manifestText, version) {
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-function main([yamlPath, jsonPath, sdkDir]) {
+/** jsonOf returns the contract as JSON, in the order it is written. */
+export function jsonOf(yamlText) {
+  return `${JSON.stringify(parse(yamlText), null, 2)}\n`;
+}
+
+// Directories copied whole from the contract directory into the package. A
+// file removed here is removed there too, so the package never ships stale data.
+const COPIED = ['testdata', 'catalogs'];
+
+function main([contractDir, sdkDir]) {
   if (!sdkDir) {
-    console.error('usage: gen.mjs <openapi.yaml> <openapi.json> <sdk directory>');
+    console.error('usage: gen.mjs <contract directory> <sdk directory>');
     process.exit(2);
   }
-  const document = JSON.parse(readFileSync(jsonPath, 'utf8'));
+  const yamlText = readFileSync(join(contractDir, 'openapi.yaml'), 'utf8');
+  const json = jsonOf(yamlText);
+  const document = JSON.parse(json);
   const { js, dts } = renderModule(document);
-  copyFileSync(yamlPath, join(sdkDir, 'openapi.yaml'));
-  copyFileSync(jsonPath, join(sdkDir, 'openapi.json'));
+  writeFileSync(join(sdkDir, 'openapi.yaml'), yamlText);
+  writeFileSync(join(sdkDir, 'openapi.json'), json);
   writeFileSync(join(sdkDir, 'operations.js'), js);
   writeFileSync(join(sdkDir, 'operations.d.ts'), dts);
+  for (const dir of COPIED) {
+    rmSync(join(sdkDir, dir), { recursive: true, force: true });
+    cpSync(join(contractDir, dir), join(sdkDir, dir), { recursive: true, filter: (src) => !src.endsWith('README.md') });
+  }
   const manifestPath = join(sdkDir, 'package.json');
   writeFileSync(manifestPath, withVersion(readFileSync(manifestPath, 'utf8'), versionOf(document)));
 }

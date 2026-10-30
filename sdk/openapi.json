@@ -99,7 +99,7 @@
     },
     {
       "name": "admin-overview",
-      "description": "The Admin console's Overview, its sidebar badge and the Plan \u0026 usage\nfigures: read models over what the other parts of the system hold. Each\nsection a caller's keys do not open is `null`, so a custom role reads\nonly what it may.\n"
+      "description": "The Admin console's Overview, its sidebar badge and the Plan & usage\nfigures: read models over what the other parts of the system hold. Each\nsection a caller's keys do not open is `null`, so a custom role reads\nonly what it may.\n"
     },
     {
       "name": "admin-settings",
@@ -890,7 +890,7 @@
                 ],
                 "description": "The light logo's path on the API's origin, carrying its content\nhash as `v`, so a new logo is a new URL and the bytes behind one\nnever change; `null` when the centre has none.\n",
                 "examples": [
-                  "/public/organization/logo?variant=light\u0026v=5e88…"
+                  "/public/organization/logo?variant=light&v=5e88…"
                 ]
               },
               "darkUrl": {
@@ -3311,7 +3311,7 @@
           "system.data_export",
           "system.leads"
         ],
-        "description": "The permission catalogue, in the order of the Roles \u0026 permissions\nmatrix, and equal to the rows of `app.permissions`. Each key and the\nmatrix row it is:\n\n- `content.tests.write`: Create and edit tests\n- `content.tests.publish`: Publish tests\n- `content.questions.write`: Manage question bank\n- `content.media.write`: Upload and delete media\n- `content.share`: Share own content with other teachers\n- `ai.use`: Use AI features\n- `teaching.classes.write`: Create classes\n- `teaching.assignments.write`: Assign tests to classes\n- `teaching.grading`: Grade answers\n- `teaching.attempts.intervene`: Reset, void or extend attempts\n- `teaching.attendance`: Take attendance\n- `people.students.read`: See students in own classes\n- `people.students.create`: Create student accounts\n- `people.students.reset_password`: Reset student passwords\n- `people.users.manage`: Add and disable users\n- `people.roles.manage`: Change roles\n- `system.audit.read`: View audit log\n- `system.settings.write`: Change system settings\n- `learning.take_tests`: Take tests and view own results\n- `ai.credits.manage`: Manage AI credits\n\n`ai.use` gates every `/teacher/ai/*` operation and the import's \"Read\nwith AI\"; `ai.credits.manage` gates every `/admin/ai/*` operation. The\nAdmin holds both, the built-in Teacher holds `ai.use`, and a custom role\nmay hold either alone. `ai.credits.manage` opens the Admin console by\nitself (`workspace.admin`); `ai.use` opens no workspace.\n\nThe last four keys in the enum are hidden: no matrix row shows them,\nno role is granted them, and only the Admin holds them. The Admin\nholds every key, and `learning.take_tests` only when that cell is\nturned on. `scope.all` reads and edits any teacher's content, classes\nand people by id, and widens the lists of classes, students and\nattempts and the dashboard's figures to every teacher's. It does not\nwiden the teaching workspace's six content lists: `listTests`,\n`listQuestions`, `listQuestionGroups`, `listMedia`, `listWordImports`\nand `listAssignments`, with their facets, tags and counts, hold the\ncaller's own rows for every caller (for assignments, those the caller\ncreated and those that target a class the caller teaches).\n"
+        "description": "The permission catalogue, in the order of the Roles & permissions\nmatrix, and equal to the rows of `app.permissions`. Each key and the\nmatrix row it is:\n\n- `content.tests.write`: Create and edit tests\n- `content.tests.publish`: Publish tests\n- `content.questions.write`: Manage question bank\n- `content.media.write`: Upload and delete media\n- `content.share`: Share own content with other teachers\n- `ai.use`: Use AI features\n- `teaching.classes.write`: Create classes\n- `teaching.assignments.write`: Assign tests to classes\n- `teaching.grading`: Grade answers\n- `teaching.attempts.intervene`: Reset, void or extend attempts\n- `teaching.attendance`: Take attendance\n- `people.students.read`: See students in own classes\n- `people.students.create`: Create student accounts\n- `people.students.reset_password`: Reset student passwords\n- `people.users.manage`: Add and disable users\n- `people.roles.manage`: Change roles\n- `system.audit.read`: View audit log\n- `system.settings.write`: Change system settings\n- `learning.take_tests`: Take tests and view own results\n- `ai.credits.manage`: Manage AI credits\n\n`ai.use` gates every `/teacher/ai/*` operation and the import's \"Read\nwith AI\"; `ai.credits.manage` gates every `/admin/ai/*` operation. The\nAdmin holds both, the built-in Teacher holds `ai.use`, and a custom role\nmay hold either alone. `ai.credits.manage` opens the Admin console by\nitself (`workspace.admin`); `ai.use` opens no workspace.\n\nThe last four keys in the enum are hidden: no matrix row shows them,\nno role is granted them, and only the Admin holds them. The Admin\nholds every key, and `learning.take_tests` only when that cell is\nturned on. `scope.all` reads and edits any teacher's content, classes\nand people by id, and widens the lists of classes, students and\nattempts and the dashboard's figures to every teacher's. It does not\nwiden the teaching workspace's six content lists: `listTests`,\n`listQuestions`, `listQuestionGroups`, `listMedia`, `listWordImports`\nand `listAssignments`, with their facets, tags and counts, hold the\ncaller's own rows for every caller (for assignments, those the caller\ncreated and those that target a class the caller teaches).\n"
       },
       "RoleIcon": {
         "type": "string",
@@ -4902,7 +4902,7 @@
           "submittedCount": {
             "type": "integer",
             "minimum": 0,
-            "description": "Distinct ASSIGNMENTS with at least one attempt that reached the\nteacher, not attempts. With `maxAttempts \u003e 1` the two differ, and\ncounting attempts would print \"14\" beside an average taken over 7\nthings.\n"
+            "description": "Distinct ASSIGNMENTS with at least one attempt that reached the\nteacher, not attempts. With `maxAttempts > 1` the two differ, and\ncounting attempts would print \"14\" beside an average taken over 7\nthings.\n"
           },
           "score": {
             "description": "Weighted: the sum of earned points over the sum of available points,\nacross each assignment's best graded attempt. Sent as the pair rather\nthan a percentage because every other score in this contract is an\n(earned, total) pair, and the client can render either reading.\n\nNull when nothing is graded yet, which is G-07's \"—\". An unsubmitted\nassignment is never a zero: \"chưa nộp\" and \"—\" are different facts,\nand collapsing them is how a gradebook lies.\n",
@@ -5584,7 +5584,7 @@
       },
       "UserImportIssue": {
         "type": "object",
-        "description": "One cell the import refused. `row` is the line of the file the row sits\non, counting the header as line 1, which is the number a spreadsheet\nshows beside it. `code` says why: `REQUIRED` (empty), `TOO_LONG`,\n`INVALID` (not an address, or a name with control characters),\n`FORMULA_LIKE` (an address that starts with a character a spreadsheet\nreads as a formula, such as `+` or `=`, which the hand-out sheet could not\ncarry as the address that signs in),\n`DUPLICATE_IN_FILE` (an address an earlier row has), `UNKNOWN_ROLE` and\n`AMBIGUOUS_ROLE` (no role, or more than one, answers to the name),\n`ROLE_NOT_ALLOWED` (the role holds a permission the importer lacks),\n`ROLE_NOT_GIVABLE` (the Assistant, which no one is given), `UNKNOWN_CLASS` and\n`AMBIGUOUS_CLASS` (no active class, or more than one, has the name), and\n`CLASS_NOT_ALLOWED` (a class for a role that is not a student target, or\nby an importer without `scope.all`), and `OVER_SEAT_LIMIT` (on `email`) and\n`OVER_TEACHER_LIMIT` (on `role`): a new account past a limit an Admin set on\nPlan \u0026 usage, counted in the file's order. A refusal carries no text of the file.\n",
+        "description": "One cell the import refused. `row` is the line of the file the row sits\non, counting the header as line 1, which is the number a spreadsheet\nshows beside it. `code` says why: `REQUIRED` (empty), `TOO_LONG`,\n`INVALID` (not an address, or a name with control characters),\n`FORMULA_LIKE` (an address that starts with a character a spreadsheet\nreads as a formula, such as `+` or `=`, which the hand-out sheet could not\ncarry as the address that signs in),\n`DUPLICATE_IN_FILE` (an address an earlier row has), `UNKNOWN_ROLE` and\n`AMBIGUOUS_ROLE` (no role, or more than one, answers to the name),\n`ROLE_NOT_ALLOWED` (the role holds a permission the importer lacks),\n`ROLE_NOT_GIVABLE` (the Assistant, which no one is given), `UNKNOWN_CLASS` and\n`AMBIGUOUS_CLASS` (no active class, or more than one, has the name), and\n`CLASS_NOT_ALLOWED` (a class for a role that is not a student target, or\nby an importer without `scope.all`), and `OVER_SEAT_LIMIT` (on `email`) and\n`OVER_TEACHER_LIMIT` (on `role`): a new account past a limit an Admin set on\nPlan & usage, counted in the file's order. A refusal carries no text of the file.\n",
         "additionalProperties": false,
         "required": [
           "row",
@@ -7771,7 +7771,7 @@
           },
           "action": {
             "type": "string",
-            "description": "A stable key such as `class.created`. The sentence that words it is\nthe client's, from `audit.action.\u003caction\u003e`; an action a client has\nno sentence for is shown humanised.\n"
+            "description": "A stable key such as `class.created`. The sentence that words it is\nthe client's, from `audit.action.<action>`; an action a client has\nno sentence for is shown humanised.\n"
           },
           "category": {
             "description": "`null` for an entry only the unfiltered list holds.",
@@ -14445,9 +14445,6 @@
               }
             }
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
           "413": {
             "description": "The body is over 8 KiB, which the rate limiter's keys read in full.",
             "content": {
@@ -14457,6 +14454,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "x-max-body-bytes": 8192,
@@ -14717,12 +14717,6 @@
               }
             }
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
-          "503": {
-            "$ref": "#/components/responses/Maintenance"
-          },
           "413": {
             "description": "The body is over 8 KiB, which the rate limiter's keys read in full.",
             "content": {
@@ -14732,6 +14726,12 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "503": {
+            "$ref": "#/components/responses/Maintenance"
           }
         },
         "x-max-body-bytes": 8192,
@@ -14847,9 +14847,6 @@
               }
             }
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
           "413": {
             "description": "The body is over 8 KiB, which the rate limiter's keys read in full.",
             "content": {
@@ -14859,6 +14856,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "x-max-body-bytes": 8192,
@@ -15461,8 +15461,8 @@
               }
             }
           },
-          "409": {
-            "description": "`IDENTITY_ALREADY_LINKED` covers three cases, all of which mean\n\"this link cannot be made\":\n\n- that Google account is already bound to another user;\n- this account already has a *different* Google account linked\n  (D-08 allows one, so that \"unlink\" is unambiguous);\n- the Google address is already some other account's email.\n\nThe third is refused for where it leads rather than where it starts.\nLinking binds the Google `sub` to this account, and §5.3's first\nbranch matches on `sub` before email — so the owner of that address\nsigning in with their own Google would land in someone else's\naccount. Silent, and very hard to diagnose from the inside.\n",
+          "403": {
+            "description": "`GOOGLE_SIGN_IN_DISABLED` — the centre has turned Google sign-in\noff. `GOOGLE_DOMAIN_NOT_ALLOWED` — the verified address is outside\nthe centre's allowed domains.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -15471,8 +15471,8 @@
               }
             }
           },
-          "403": {
-            "description": "`GOOGLE_SIGN_IN_DISABLED` — the centre has turned Google sign-in\noff. `GOOGLE_DOMAIN_NOT_ALLOWED` — the verified address is outside\nthe centre's allowed domains.\n",
+          "409": {
+            "description": "`IDENTITY_ALREADY_LINKED` covers three cases, all of which mean\n\"this link cannot be made\":\n\n- that Google account is already bound to another user;\n- this account already has a *different* Google account linked\n  (D-08 allows one, so that \"unlink\" is unambiguous);\n- the Google address is already some other account's email.\n\nThe third is refused for where it leads rather than where it starts.\nLinking binds the Google `sub` to this account, and §5.3's first\nbranch matches on `sub` before email — so the owner of that address\nsigning in with their own Google would land in someone else's\naccount. Silent, and very hard to diagnose from the inside.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -19111,7 +19111,7 @@
             "$ref": "#/components/responses/BadRequest"
           },
           "409": {
-            "description": "`MEDIA_QUOTA_EXCEEDED` — the caller's library, with the files it\nstill holds, would hold more than its quota with this file.\n`STORAGE_LIMIT` — the centre's files would take more than the\nstorage limit an Admin set on Plan \u0026 usage.\nNothing was stored.\n",
+            "description": "`MEDIA_QUOTA_EXCEEDED` — the caller's library, with the files it\nstill holds, would hold more than its quota with this file.\n`STORAGE_LIMIT` — the centre's files would take more than the\nstorage limit an Admin set on Plan & usage.\nNothing was stored.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -19671,7 +19671,7 @@
         "tags": [
           "teacher-assignments"
         ],
-        "description": "`testVersionId` may be changed **only while no attempt exists**.\nRe-pointing an untouched assignment at a corrected version is a\nlegitimate workflow; doing it once students have started is not.\nExisting attempts always carry their own version regardless (§7).\n\nWhile the assignment is `open`, a **change** to `testVersionId`,\n`durationMinutes` or `maxAttempts` is refused with `ASSIGNMENT_LOCKED`\n(DG-65: only \"Test \u0026 timing\" locks); sending the stored value passes,\nand every other field stays editable. Outside `open` the version check\nabove is the only one.\n\nA **closed** assignment, by its window or by an early close, at the\nmoment of the request, stays closed: a `window` that would make it\n`scheduled` or `open` again, or that opens after the early close the\nassignment keeps, is refused with `ASSIGNMENT_CLOSED`, because that is\na reopening and `reopenAssignment` does it, asking for a reason and\nwriting its own audit entry. A request that leaves it closed passes:\nthe stored window, an earlier `closesAt`, `closeNow` (while `opensAt`\nis not ahead of now) and every other field. An early close is never\nlifted here.\n\n`review.release`, `review.showClassAverage` and `studentNote` are\npartial: omitted, they keep what is stored. `studentNote: null` clears\nthe note. Every other field is replaced as before.\n\nAn attempt already in progress moves with a later close, in the same\ntransaction: its deadline becomes the earlier of its start plus the\nstudent's time limit and the student's own close, when that is later\nthan the deadline it has. A deadline never moves earlier, so a shorter\nclose, or `closeNow`, leaves every attempt in progress where it is, and\nan attempt whose deadline has already passed is over and is not\nrevived. Each attempt moved is audited as `attempt.extended`.\n",
+        "description": "`testVersionId` may be changed **only while no attempt exists**.\nRe-pointing an untouched assignment at a corrected version is a\nlegitimate workflow; doing it once students have started is not.\nExisting attempts always carry their own version regardless (§7).\n\nWhile the assignment is `open`, a **change** to `testVersionId`,\n`durationMinutes` or `maxAttempts` is refused with `ASSIGNMENT_LOCKED`\n(DG-65: only \"Test & timing\" locks); sending the stored value passes,\nand every other field stays editable. Outside `open` the version check\nabove is the only one.\n\nA **closed** assignment, by its window or by an early close, at the\nmoment of the request, stays closed: a `window` that would make it\n`scheduled` or `open` again, or that opens after the early close the\nassignment keeps, is refused with `ASSIGNMENT_CLOSED`, because that is\na reopening and `reopenAssignment` does it, asking for a reason and\nwriting its own audit entry. A request that leaves it closed passes:\nthe stored window, an earlier `closesAt`, `closeNow` (while `opensAt`\nis not ahead of now) and every other field. An early close is never\nlifted here.\n\n`review.release`, `review.showClassAverage` and `studentNote` are\npartial: omitted, they keep what is stored. `studentNote: null` clears\nthe note. Every other field is replaced as before.\n\nAn attempt already in progress moves with a later close, in the same\ntransaction: its deadline becomes the earlier of its start plus the\nstudent's time limit and the student's own close, when that is later\nthan the deadline it has. A deadline never moves earlier, so a shorter\nclose, or `closeNow`, leaves every attempt in progress where it is, and\nan attempt whose deadline has already passed is over and is not\nrevived. Each attempt moved is audited as `attempt.extended`.\n",
         "requestBody": {
           "required": true,
           "content": {
@@ -21361,7 +21361,7 @@
           {
             "name": "classId",
             "in": "query",
-            "description": "Only students who are in at least one of these classes (`classId=a\u0026classId=b`;\none value still works). A class the caller does not reach matches nothing,\nas a missing class does.\n",
+            "description": "Only students who are in at least one of these classes (`classId=a&classId=b`;\none value still works). A class the caller does not reach matches nothing,\nas a missing class does.\n",
             "schema": {
               "type": "array",
               "maxItems": 50,
@@ -21389,7 +21389,7 @@
           {
             "name": "accountStatus",
             "in": "query",
-            "description": "Only the accounts listed under one of these statuses\n(`accountStatus=active\u0026accountStatus=never_signed_in`), in\n`AccountStatus`'s order of precedence. A `disabled` account is\nreturned only when `status` is `disabled` or `all`.\n",
+            "description": "Only the accounts listed under one of these statuses\n(`accountStatus=active&accountStatus=never_signed_in`), in\n`AccountStatus`'s order of precedence. A `disabled` account is\nreturned only when `status` is `disabled` or `all`.\n",
             "schema": {
               "type": "array",
               "maxItems": 4,
@@ -21992,7 +21992,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "`EMAIL_TAKEN` — already in use, compared case-insensitively.\n`STALE_WRITE` — the role changed three times while the account was being created; nothing was written, so the same request may be sent again.\n`SEAT_LIMIT` or `TEACHER_LIMIT` — the account would take the centre past a limit an Admin set on Plan \u0026 usage; nothing was written.\n",
+            "description": "`EMAIL_TAKEN` — already in use, compared case-insensitively.\n`STALE_WRITE` — the role changed three times while the account was being created; nothing was written, so the same request may be sent again.\n`SEAT_LIMIT` or `TEACHER_LIMIT` — the account would take the centre past a limit an Admin set on Plan & usage; nothing was written.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -22449,7 +22449,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "`STALE_WRITE` — the account's role, or another write to the account, changed while it was being written. Nothing was written; try again.\n`SEAT_LIMIT` or `TEACHER_LIMIT` — enabling the account would take the centre past a limit an Admin set on Plan \u0026 usage; it stays disabled.\n",
+            "description": "`STALE_WRITE` — the account's role, or another write to the account, changed while it was being written. Nothing was written; try again.\n`SEAT_LIMIT` or `TEACHER_LIMIT` — enabling the account would take the centre past a limit an Admin set on Plan & usage; it stays disabled.\n",
             "content": {
               "application/json": {
                 "schema": {
@@ -23233,7 +23233,7 @@
           "admin-roles"
         ],
         "summary": "The roles and the permission catalogue",
-        "description": "Every role with its permissions, head count and revision, and the\ncatalogue of matrix rows, for the Roles \u0026 permissions page. The\nAssistant is listed as the deck draws it; only the role pickers\n(`listAssignableRoles`) leave it out.\n",
+        "description": "Every role with its permissions, head count and revision, and the\ncatalogue of matrix rows, for the Roles & permissions page. The\nAssistant is listed as the deck draws it; only the role pickers\n(`listAssignableRoles`) leave it out.\n",
         "responses": {
           "200": {
             "description": "OK",
@@ -23541,7 +23541,7 @@
           "admin-overview"
         ],
         "summary": "What the centre uses against its limits",
-        "description": "The Plan \u0026 usage figures, each beside its limit as `UsageLimits`\nresolves it (CR-002). `aiCredits` is the month's credits used against\nthe centre pool, and is `null` without `ai.credits.manage` and while the\nAI assistant is off.\n",
+        "description": "The Plan & usage figures, each beside its limit as `UsageLimits`\nresolves it (CR-002). `aiCredits` is the month's credits used against\nthe centre pool, and is `null` without `ai.credits.manage` and while the\nAI assistant is off.\n",
         "responses": {
           "200": {
             "description": "OK",
@@ -23579,7 +23579,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "`quizzivy_docs=\u003ctoken\u003e; Path=/docs; Max-Age=900; HttpOnly; Secure; SameSite=Strict`"
+                "description": "`quizzivy_docs=<token>; Path=/docs; Max-Age=900; HttpOnly; Secure; SameSite=Strict`"
               }
             }
           }
@@ -26049,9 +26049,6 @@
               }
             }
           },
-          "429": {
-            "$ref": "#/components/responses/TooManyRequests"
-          },
           "413": {
             "description": "The body is over 8 KiB, which the rate limiter's keys read in full.",
             "content": {
@@ -26061,6 +26058,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
           }
         },
         "x-max-body-bytes": 8192,
