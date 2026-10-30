@@ -1,0 +1,74 @@
+name: Promote
+
+# Moves a published release of @quizzivy/sdk to the `latest` dist-tag, which
+# is what a client gets by default. Only once the API that serves it is live
+# (D-081): the api repository's deploy sends a repository_dispatch here with
+# the exact version its deployed commit pins (D-082 (iv)). The owner can also
+# run it by hand (Actions -> Promote -> Run workflow).
+#
+# Idempotent: a version that is already `latest` is left as it is, so a
+# redeploy or a second dispatch does nothing.
+on:
+  repository_dispatch:
+    types: [promote-sdk]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The release to make `latest`, for example 0.13.3
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-promote
+  cancel-in-progress: false
+
+env:
+  NODE_VERSION: "24"
+  PACKAGE: "@quizzivy/sdk"
+
+jobs:
+  promote:
+    name: Promote
+    if: github.repository_owner == 'Quizzivy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://npm.pkg.github.com
+          scope: "@quizzivy"
+
+      - name: Move `latest`
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Never interpolated into the script: a dispatch payload is input.
+          VERSION: ${{ github.event.client_payload.version || inputs.version }}
+          SOURCE: ${{ github.event.client_payload.source || github.actor }}
+        run: |
+          if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error title=Promote::'$VERSION' is not a release version (MAJOR.MINOR.PATCH); a -dev build never becomes latest."
+            exit 1
+          fi
+          if ! npm view "$PACKAGE@$VERSION" version >/dev/null 2>&1; then
+            echo "::error title=Promote::$PACKAGE@$VERSION is not published. Push the tag v$VERSION here first (publish.yml)."
+            exit 1
+          fi
+          current=$(npm view "$PACKAGE" dist-tags.latest 2>/dev/null || true)
+          if [ "$current" = "$VERSION" ]; then
+            echo "$PACKAGE@$VERSION is already \`latest\`; nothing to do." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          npm dist-tag add "$PACKAGE@$VERSION" latest
+          after=$(npm view "$PACKAGE" dist-tags.latest)
+          if [ "$after" != "$VERSION" ]; then
+            echo "::error title=Promote::the registry still reports latest = $after after moving it to $VERSION."
+            exit 1
+          fi
+          echo "\`latest\` moved from ${current:-nothing} to $PACKAGE@$VERSION (asked by $SOURCE)." | tee -a "$GITHUB_STEP_SUMMARY"
