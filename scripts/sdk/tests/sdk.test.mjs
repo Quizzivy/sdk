@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
-import { bumpsBreaking, parseVersion, versionOf, violationsOf } from '../check.mjs';
+import { bumpsBreaking, isLower, parseVersion, versionOf, violationsOf } from '../check.mjs';
 import { operationsOf, renderModule, versionOf as documentVersion, withVersion } from '../gen.mjs';
 
 const doc = (paths, version = '1.2.3') => ({ info: { version }, paths });
@@ -80,7 +80,6 @@ const clean = {
   release: false,
   baseVersion: '0.13.2',
   headVersion: '0.13.2',
-  webVersion: '0.13.2',
 };
 
 test('a feature PR: additive passes, breaking needs the label, the version is not checked', () => {
@@ -90,20 +89,21 @@ test('a feature PR: additive passes, breaking needs the label, the version is no
   assert.deepEqual(violationsOf({ ...clean, headVersion: '9.9.9' }), []);
 });
 
-test('a release PR: version equals the web, moves when the contract moved, minor for a breaking change', () => {
-  const release = { ...clean, release: true, headVersion: '0.13.3', webVersion: '0.13.3' };
+test('a release PR: version moves forward, moves when the contract moved, minor for a breaking change', () => {
+  const release = { ...clean, release: true, headVersion: '0.13.3' };
   assert.deepEqual(violationsOf(release), []);
-  assert.match(violationsOf({ ...release, webVersion: '0.13.4' }).join(), /must equal web\/package.json/);
-  assert.match(
-    violationsOf({ ...release, headVersion: '0.13.2', webVersion: '0.13.2' }).join(),
-    /still 0\.13\.2/,
-  );
-  assert.deepEqual(violationsOf({ ...release, changed: false, headVersion: '0.13.2', webVersion: '0.13.2' }), []);
+  assert.match(violationsOf({ ...release, headVersion: '0.13.1' }).join(), /lower than 0\.13\.2/);
+  assert.match(violationsOf({ ...release, headVersion: '0.13.2' }).join(), /still 0\.13\.2/);
+  assert.deepEqual(violationsOf({ ...release, changed: false, headVersion: '0.13.2' }), []);
   assert.match(violationsOf({ ...release, breaking: true, labelled: true }).join(), /needs a new minor/);
-  assert.deepEqual(
-    violationsOf({ ...release, breaking: true, labelled: true, headVersion: '0.14.0', webVersion: '0.14.0' }),
-    [],
-  );
+  assert.deepEqual(violationsOf({ ...release, breaking: true, labelled: true, headVersion: '0.14.0' }), []);
+});
+
+test('isLower orders versions numerically, not as text', () => {
+  assert.equal(isLower('0.9.0', '0.13.0'), true);
+  assert.equal(isLower('0.13.10', '0.13.9'), false);
+  assert.equal(isLower('1.0.0', '1.0.0'), false);
+  assert.equal(isLower('garbage', '1.0.0'), false);
 });
 
 test('the committed operation map has exactly one entry per operationId in the contract', async () => {

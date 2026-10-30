@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
 
-const TSC = resolve('web/node_modules/typescript/bin/tsc');
+const TSC = resolve('node_modules/typescript/bin/tsc');
 const SDK = resolve('sdk');
 
 const SOURCE = `import type { components, operations, paths, OperationId } from "@quizzivy/sdk";
