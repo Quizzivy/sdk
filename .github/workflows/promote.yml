@@ -72,3 +72,22 @@ jobs:
             exit 1
           fi
           echo "\`latest\` moved from ${current:-nothing} to $PACKAGE@$VERSION (asked by $SOURCE)." | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # What a client gets: install @latest into an empty project, as the api
+      # and web repositories do, and read the version and the contract back.
+      - name: Install `latest` as a client would
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.event.client_payload.version || inputs.version }}
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir client && cd client
+          npm init -y >/dev/null
+          npm install "$PACKAGE@latest" --no-audit --no-fund >/dev/null
+          got=$(node -p "require('$PACKAGE/package.json').version")
+          contract=$(node --input-type=module -e "import { CONTRACT_VERSION } from '$PACKAGE'; console.log(CONTRACT_VERSION)")
+          if [ "$got" != "$VERSION" ] || [ "$contract" != "$VERSION" ]; then
+            echo "::error title=Promote::a fresh install of $PACKAGE@latest gave $got (CONTRACT_VERSION $contract), not $VERSION."
+            exit 1
+          fi
+          echo "A fresh install of $PACKAGE@latest gives $VERSION." | tee -a "$GITHUB_STEP_SUMMARY"
