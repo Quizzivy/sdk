@@ -7,7 +7,7 @@
 import { cpSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parse } from 'yaml';
+import { isAlias, isMap, isScalar, isSeq, parseDocument } from 'yaml';
 
 const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
 
@@ -86,9 +86,58 @@ export function withVersion(manifestText, version) {
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-/** jsonOf returns the contract as JSON, in the order it is written. */
+/**
+ * jsonOf returns the contract as JSON in the order it is written, byte for
+ * byte what the server's gencontract writes (Go's encoder, which also escapes
+ * <, > and &). Walking the YAML nodes keeps that order where a
+ * plain object would not: JavaScript puts integer-like keys such as the
+ * response codes "200" and "404" first. YAML that JSON cannot say the same way
+ * (an alias, a merge key, an integer past 2^53, a non-finite number) is refused.
+ */
 export function jsonOf(yamlText) {
-  return `${JSON.stringify(parse(yamlText), null, 2)}\n`;
+  const document = parseDocument(yamlText, { intAsBigInt: true, merge: false });
+  if (document.errors.length > 0) throw document.errors[0];
+  return `${renderNode(document.contents, '')}\n`;
+}
+
+function renderNode(node, indent) {
+  if (node === null || node === undefined) return 'null';
+  if (isAlias(node)) throw new Error(`the contract uses the YAML alias *${node.source}: write the value out`);
+  const inner = `${indent}  `;
+  if (isMap(node)) {
+    if (node.items.length === 0) return '{}';
+    const entries = node.items.map(({ key, value }) => {
+      if (!isScalar(key)) throw new Error('the contract has a map key that is not a plain value');
+      const name = String(key.value);
+      if (name === '<<') throw new Error('the contract uses a YAML merge key (<<): write the fields out');
+      return `${inner}${jsonString(name)}: ${renderNode(value, inner)}`;
+    });
+    return `{\n${entries.join(',\n')}\n${indent}}`;
+  }
+  if (isSeq(node)) {
+    if (node.items.length === 0) return '[]';
+    return `[\n${node.items.map((item) => `${inner}${renderNode(item, inner)}`).join(',\n')}\n${indent}]`;
+  }
+  if (isScalar(node)) return renderScalar(node.value);
+  throw new Error(`the contract has a YAML node JSON cannot hold: ${String(node)}`);
+}
+
+function renderScalar(value) {
+  if (typeof value === 'bigint') {
+    if (value > BigInt(Number.MAX_SAFE_INTEGER) || value < BigInt(Number.MIN_SAFE_INTEGER)) {
+      throw new Error(`the contract has the integer ${value}, past what a JSON client reads exactly (2^53)`);
+    }
+    return String(value);
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    throw new Error(`the contract has the number ${value}, which JSON cannot hold`);
+  }
+  return typeof value === 'string' ? jsonString(value) : JSON.stringify(value ?? null);
+}
+
+// jsonString escapes as Go's encoding/json does, so the two generators agree.
+function jsonString(text) {
+  return JSON.stringify(text).replace(/[<>&\u2028\u2029]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
 }
 
 // Directories copied whole from the contract directory into the package. A

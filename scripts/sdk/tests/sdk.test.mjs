@@ -106,9 +106,31 @@ test('isLower orders versions numerically, not as text', () => {
   assert.equal(isLower('garbage', '1.0.0'), false);
 });
 
-test('jsonOf keeps the order the contract is written in', () => {
-  const json = jsonOf('openapi: 3.1.0\ninfo:\n  version: 1.2.3\n  title: T\npaths: {}\n');
-  assert.equal(json, '{\n  "openapi": "3.1.0",\n  "info": {\n    "version": "1.2.3",\n    "title": "T"\n  },\n  "paths": {}\n}\n');
+test('jsonOf keeps the order the contract is written in, integer-like keys included', () => {
+  const json = jsonOf("info:\n  version: 1.2.3\n  title: T\nresponses:\n  '404': {}\n  '200': { description: ok }\n");
+  assert.equal(
+    json,
+    '{\n  "info": {\n    "version": "1.2.3",\n    "title": "T"\n  },\n  "responses": {\n    "404": {},\n    "200": {\n      "description": "ok"\n    }\n  }\n}\n',
+  );
+});
+
+test('jsonOf escapes as Go does and keeps scalars as JSON types', () => {
+  assert.equal(jsonOf('a: "<b> & c"\n'), '{\n  "a": "\\u003cb\\u003e \\u0026 c"\n}\n');
+  assert.deepEqual(JSON.parse(jsonOf('n: 9007199254740991\nf: 1.5\nt: true\nz: null\nl: []\n')), {
+    n: 9007199254740991,
+    f: 1.5,
+    t: true,
+    z: null,
+    l: [],
+  });
+});
+
+test('jsonOf refuses YAML that JSON cannot say the same way', () => {
+  assert.throws(() => jsonOf('a: &x { b: 1 }\nc: *x\n'), /alias \*x/);
+  assert.throws(() => jsonOf('a: { b: 1 }\nc:\n  <<: { b: 1 }\n'), /merge key/);
+  assert.throws(() => jsonOf('a: 9007199254740993\n'), /past what a JSON client reads exactly/);
+  assert.throws(() => jsonOf('a: .inf\n'), /JSON cannot hold/);
+  assert.throws(() => jsonOf('a: 1\na: 2\n'), /unique/i);
 });
 
 test('the committed openapi.json is the committed openapi.yaml', () => {
