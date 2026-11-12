@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import Ajv from "ajv/dist/2020.js";
 import addFormats from "ajv-formats";
-import type { components } from "@/lib/api/schema";
+import type { components } from "@quizzivy/sdk";
 import { loadSpec } from "@tests/support/openapi";
 
 /**

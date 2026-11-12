@@ -8,8 +8,8 @@ import { parse } from "yaml";
  * against synthetic documents — a checker nobody checks is decoration.
  */
 
-// tests/support -> tests -> web -> repo root.
-export const SPEC_PATH = resolve(import.meta.dirname, "../../../api/openapi.yaml");
+// tests/support -> tests -> repo root.
+export const SPEC_PATH = resolve(import.meta.dirname, "../../api/openapi.yaml");
 
 /**
  * An OpenAPI document is an arbitrary JSON tree. Typing it fully would be its

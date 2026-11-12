@@ -1,6 +1,6 @@
 import Ajv from "ajv/dist/2020";
 import addFormats from "ajv-formats";
-import type { components } from "@/lib/api/schema";
+import type { components } from "@quizzivy/sdk";
 import { loadSpec, propertyNames } from "@tests/support/openapi";
 
 const spec = loadSpec();

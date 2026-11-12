@@ -1,0 +1,65 @@
+name: CI
+
+# Every contract PR: lint, the contract tests, the package regenerated with no
+# drift, and the breaking-change gate against the merge-base (D-080, D-082).
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "24"
+  PNPM_VERSION: "11.25.0"
+  # Only for `go run` of oasdiff in make sdk-check.
+  GO_VERSION: "1.27"
+
+jobs:
+  contract:
+    name: Contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The gate diffs against the merge-base with the base branch.
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: false
+
+      - name: Install the test tools
+        run: make install
+
+      - name: Lint the contract, run its tests, regenerate and fail on drift
+        run: make gen-check
+
+      - name: The SDK scripts' own tests
+        run: node --test "scripts/sdk/tests/*.test.mjs"
+
+      # Report-only until the gate has been run over the contract's history
+      # (D-080): findings show as warnings and in the job summary.
+      - name: SDK gate (breaking changes since the merge-base)
+        if: github.event_name == 'pull_request'
+        env:
+          SDK_BASE: origin/${{ github.base_ref }}
+          SDK_RELEASE: ${{ github.base_ref == 'main' }}
+          CONTRACT_BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'contract-breaking') }}
+        run: make sdk-check
