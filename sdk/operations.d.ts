@@ -168,6 +168,7 @@ export declare const OPERATIONS: {
   readonly "makeTestVariant": { readonly method: "post"; readonly path: "/teacher/ai/tests/{id}/variant" };
   readonly "writeAiExplanation": { readonly method: "post"; readonly path: "/teacher/ai/questions/{id}/explanation" };
   readonly "suggestAiDistractors": { readonly method: "post"; readonly path: "/teacher/ai/questions/{id}/distractors" };
+  readonly "suggestAiGapDistractors": { readonly method: "post"; readonly path: "/teacher/ai/gaps/distractors" };
   readonly "suggestAiScore": { readonly method: "post"; readonly path: "/teacher/ai/attempts/{attemptId}/answers/{questionId}/score-suggestion" };
   readonly "explainAssignmentResults": { readonly method: "post"; readonly path: "/teacher/ai/assignments/{id}/insights" };
   readonly "cleanUpQuestionBank": { readonly method: "post"; readonly path: "/teacher/ai/bank/cleanup" };

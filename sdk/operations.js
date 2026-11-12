@@ -166,6 +166,7 @@ export const OPERATIONS = Object.freeze({
   "makeTestVariant": Object.freeze({ method: "post", path: "/teacher/ai/tests/{id}/variant" }),
   "writeAiExplanation": Object.freeze({ method: "post", path: "/teacher/ai/questions/{id}/explanation" }),
   "suggestAiDistractors": Object.freeze({ method: "post", path: "/teacher/ai/questions/{id}/distractors" }),
+  "suggestAiGapDistractors": Object.freeze({ method: "post", path: "/teacher/ai/gaps/distractors" }),
   "suggestAiScore": Object.freeze({ method: "post", path: "/teacher/ai/attempts/{attemptId}/answers/{questionId}/score-suggestion" }),
   "explainAssignmentResults": Object.freeze({ method: "post", path: "/teacher/ai/assignments/{id}/insights" }),
   "cleanUpQuestionBank": Object.freeze({ method: "post", path: "/teacher/ai/bank/cleanup" }),
