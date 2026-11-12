@@ -1,6 +1,6 @@
 {
   "name": "@quizzivy/sdk",
-  "version": "0.13.2",
+  "version": "0.13.4",
   "description": "The Quizzivy API contract: the OpenAPI document, the TypeScript types generated from it, and the test data and catalogs the server and its clients agree on. Types and constants only, no runtime client.",
   "license": "UNLICENSED",
   "type": "module",
