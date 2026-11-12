@@ -3954,6 +3954,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/ai/gaps/distractors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Suggest wrong options for a gap in a text
+         * @description For a gap in the text of a question group's material, as the builder
+         *     holds it, saved or not: a gap the student types has no stored choice
+         *     question, and `suggestAiDistractors` reads none of a group's members.
+         *     Takes the gap's sentence on either side of the gap, the answers the
+         *     gap accepts and the wrong options it already has, and suggests up to
+         *     four wrong options that are none of them. Reads nothing stored and
+         *     saves nothing: the teacher keeps a suggestion through
+         *     `updateQuestionGroup`. Only the texts of the request are sent to the
+         *     provider.
+         *
+         *     Reserves the call's ceiling before it reaches the provider and settles
+         *     what the provider billed after, as `suggestAiDistractors` does, and is
+         *     counted with it in the caller's usage.
+         */
+        post: operations["suggestAiGapDistractors"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/teacher/ai/attempts/{attemptId}/answers/{questionId}/score-suggestion": {
         parameters: {
             query?: never;
@@ -9106,6 +9138,20 @@ export interface components {
         AiDistractorsResult: {
             items: components["schemas"]["AiDistractor"][];
             usage: components["schemas"]["AiUsage"];
+        };
+        /**
+         * @description A gap in a text, as the builder holds it. `before` and `after` are the
+         *     plain text of the gap's sentence on either side of the gap; either is
+         *     empty when the gap opens or closes its sentence. Nothing about a
+         *     student is ever sent.
+         */
+        AiGapDistractorsRequest: {
+            before: string;
+            after: string;
+            /** @description Every answer the gap accepts, the word the gap replaced first. No suggestion is one of them. */
+            answers: string[];
+            /** @description The wrong options the gap already has, which no suggestion repeats. Absent or empty for a gap the student types. */
+            options?: string[];
         };
         /**
          * @description For a short answer `score` is one of the multiples of 0.5 from 0 to
@@ -16694,6 +16740,44 @@ export interface operations {
             403: components["responses"]["AiNotAllowed"];
             404: components["responses"]["NotFound"];
             /** @description The question is not a single or multiple choice question, or has no key. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            501: components["responses"]["AiOff"];
+            503: components["responses"]["AiUnavailable"];
+        };
+    };
+    suggestAiGapDistractors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiGapDistractorsRequest"];
+            };
+        };
+        responses: {
+            /** @description One to four suggestions, none of them an answer or an option the request names. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiDistractorsResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            402: components["responses"]["AiCreditsExhausted"];
+            403: components["responses"]["AiNotAllowed"];
+            /** @description The first of `answers` holds no word. */
             422: {
                 headers: {
                     [name: string]: unknown;
