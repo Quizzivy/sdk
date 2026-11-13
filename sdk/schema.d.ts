@@ -164,6 +164,9 @@ export interface paths {
          *     An ID token with `email_verified: false` is **rejected outright** — no
          *     link, no create, regardless of `joinCode`. This closes an
          *     account-takeover path and is not negotiable (§5.1).
+         *
+         *     `redirectUri` is the callback of the host the person started from;
+         *     each web host has its own, and the server allows exactly those.
          */
         post: operations["googleAuth"];
         delete?: never;
@@ -258,9 +261,12 @@ export interface paths {
         put?: never;
         /**
          * Rotate the refresh token
-         * @description Reads the opaque token from the cookie and rotates it. Presenting an
-         *     already-rotated token revokes the **whole family** and forces re-login
-         *     (§5.2).
+         * @description Reads the opaque token from the cookie of the request's host
+         *     (`refreshCookie`) and rotates it. Presenting an already-rotated token
+         *     revokes the **whole family** and forces re-login (§5.2).
+         *
+         *     A session whose account no longer belongs at its host (§5.8), because
+         *     its role changed, is revoked here and answered `401`.
          *
          *     The client must call this **single-flight** — one shared in-flight
          *     promise. Parallel calls on a cold page load would each present the same
@@ -314,6 +320,11 @@ export interface paths {
          * Revoke the refresh family and clear the cookie
          * @description Revokes the presented refresh token family. The client also clears its
          *     store and calls `queryClient.clear()` (§5.4).
+         *
+         *     It ends the session of the host the request came from and clears that
+         *     host's cookie only (§5.8): a session the same browser holds at the
+         *     other host stays signed in. The docs cookie is the Admin console's, so
+         *     a sign-out at the student host leaves it alone.
          *
          *     Authenticated by the refresh COOKIE, not the access token. An expired
          *     access token must not be able to strand a live refresh family: the one
@@ -428,11 +439,18 @@ export interface paths {
         };
         /**
          * The caller's signed-in devices
-         * @description Every live session of the caller, one row per sign-in, and no one
-         *     else's. The session of the request's refresh cookie comes first with
-         *     `current: true`; the others follow by `lastUsedAt`, newest first, then
-         *     by `familyId`. At most 100 rows: a caller with more sees the newest
-         *     ones, and "sign out the others" still ends them all.
+         * @description Every live session of the caller at the host the request came from
+         *     (§5.8), one row per sign-in, and no one else's. The session of the
+         *     request's refresh cookie comes first with `current: true`; the others
+         *     follow by `lastUsedAt`, newest first, then by `familyId`. At most 100
+         *     rows: a caller with more sees the newest ones, and "sign out the
+         *     others" still ends them all.
+         *
+         *     A session the same account holds at the other web host is not in the
+         *     list, and `revokeSession` and `revokeOtherSessions` do not reach it.
+         *     What ends the sessions of an account at both hosts is a change of its
+         *     password, a set-password link, an admin's reset or sign-out, and
+         *     disabling it.
          *
          *     The calling session is identified by the refresh cookie, which reaches
          *     this endpoint because it is scoped `Path=/auth`. Without a cookie that
@@ -10170,7 +10188,7 @@ export interface operations {
             /** @description Signed in. Sets the rotating refresh cookie. */
             200: {
                 headers: {
-                    /** @description `quizzivy_refresh=…; HttpOnly; Secure; SameSite=Lax; Path=/auth` */
+                    /** @description `quizzivy_refresh=…; HttpOnly; Secure; SameSite=Lax; Path=/auth`, under the name of the request's host (`refreshCookie`). */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
@@ -10198,6 +10216,15 @@ export interface operations {
              *     sign-in off. It is decided before the email or the password is
              *     looked at, so every password sign-in gets it alike and it says
              *     nothing about any account.
+             *
+             *     `FORBIDDEN` — the email and the password are right, and the
+             *     account does not belong at the host the request came from: a
+             *     student at the staff host, or staff at the student host (§5.8). No
+             *     session is opened, and the message names the host to sign in at;
+             *     the client links to that host's sign-in page.
+             *     **Leak review.** It is decided after the password has been
+             *     verified, so it tells the kind of an account only to someone who
+             *     holds its password; a wrong password is `401` at either host.
              */
             403: {
                 headers: {
@@ -10243,7 +10270,7 @@ export interface operations {
             /** @description Signed in, or signed up and enrolled. */
             200: {
                 headers: {
-                    /** @description `quizzivy_refresh=…; HttpOnly; Secure; SameSite=Lax; Path=/auth` — §5.3 step 5. Without it the sign-in has no session. */
+                    /** @description `quizzivy_refresh=…; HttpOnly; Secure; SameSite=Lax; Path=/auth`, under the name of the request's host (`refreshCookie`) — §5.3 step 5. Without it the sign-in has no session. */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
@@ -10285,6 +10312,12 @@ export interface operations {
              *     `SEAT_LIMIT` — a code would create the account, and the centre has
              *     used every seat an Admin allowed. The message names no figure; no
              *     account is created and the code is not used.
+             *
+             *     `FORBIDDEN` — the account Google confirmed does not belong at the
+             *     host the request came from (§5.8), as at `login`. A `joinCode` at
+             *     the staff host gets it too, before any account is looked up: a
+             *     code makes a student, so no account is created and the code is not
+             *     used.
              */
             403: {
                 headers: {
@@ -10392,7 +10425,7 @@ export interface operations {
             /** @description The password is set and the account is signed in. Sets the rotating refresh cookie. */
             200: {
                 headers: {
-                    /** @description `quizzivy_refresh=…; HttpOnly; Secure; SameSite=Lax; Path=/auth` */
+                    /** @description `quizzivy_refresh=…; HttpOnly; Secure; SameSite=Lax; Path=/auth`, under the name of the request's host (`refreshCookie`). */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };
@@ -10401,6 +10434,19 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /**
+             * @description `FORBIDDEN` — the link is valid, and its account does not belong
+             *     at the host the request came from (§5.8). Nothing was changed: the
+             *     link stays usable at the host its email named.
+             */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             /** @description `SET_PASSWORD_LINK_INVALID` — as for `checkSetPasswordLink`. Nothing was changed. */
             410: {
                 headers: {
@@ -10449,7 +10495,7 @@ export interface operations {
             200: {
                 headers: {
                     /**
-                     * @description The REPLACEMENT `quizzivy_refresh` cookie. Rotation is only
+                     * @description The REPLACEMENT refresh cookie, under the name it came in. Rotation is only
                      *     half-done without it: the predecessor is revoked server-side, so
                      *     a client that kept the old value is logged out on its next call.
                      */
@@ -10570,9 +10616,11 @@ export interface operations {
             204: {
                 headers: {
                     /**
-                     * @description Two headers. `quizzivy_refresh=; Max-Age=0` with the same Path and flags,
-                     *     or the browser keeps the old cookie; and `quizzivy_docs=; Path=/docs;
-                     *     Max-Age=0`, so signing out also ends an open API reference session (§5.5).
+                     * @description Two headers. The refresh cookie of the request's host with
+                     *     `Max-Age=0` and the same Path and flags, or the browser keeps
+                     *     the old cookie; and, except at the student host,
+                     *     `quizzivy_docs=; Path=/docs; Max-Age=0`, so signing out also
+                     *     ends an open API reference session (§5.5).
                      */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
