@@ -5162,12 +5162,11 @@ export interface components {
              * @description Shape depends on `code`. Field-level validation errors land here
              *     as `{ field: message }` for react-hook-form.
              *
-             *     The per-field sentences the rules word for a refused question,
-             *     test or assignment, and the `message` of each publish violation
-             *     they produce (every one but that of a test with no part at all),
-             *     are Vietnamese whatever the header says (issue 284). A per-field
-             *     sentence the operation words itself follows the header, as
-             *     `message` does.
+             *     A per-field sentence follows the header, as `message` does, and
+             *     so does the `message` of each publish violation. The one
+             *     exception is the note beside a refused field of a role
+             *     (`/admin/roles`) or of an AI request, rule, allowance or credit
+             *     operation: those are short English notes whatever the header says.
              */
             details?: {
                 [key: string]: unknown;
