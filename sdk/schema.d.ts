@@ -118,6 +118,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask the centre to call back about its courses
+         * @description The consultation form of the landing site. A request that passes
+         *     validation is stored with the consent it carries (`consent`, the
+         *     notice's version and the time), and one email per address in the
+         *     settings' `leadRecipients` is queued in the same transaction. The email
+         *     gives the given name, the interests, who the course is for, the best
+         *     time to call and a link to the request in the Admin console; it never
+         *     holds the phone number or the full name. The given name is the last
+         *     word of the name for a request sent in Vietnamese and the first for one
+         *     sent in English.
+         *
+         *     Two requests are answered `202` and not stored: one that fills
+         *     `website`, and one whose phone number already has two stored requests
+         *     from the last 24 hours. Neither is told apart from a stored one.
+         *
+         *     The landing site calls this from its own origin, without credentials:
+         *     the server answers that origin's preflight for this operation and for
+         *     `getPublicStatus`, and for no other.
+         *
+         *     **Leak review (§6.5).** The answer is the same body for every request
+         *     that passes validation, stored or not: nothing is echoed, and nothing
+         *     says whether a number was seen before, whether anyone is told, or that
+         *     `website` was read. A stored and an unstored request do the same phone
+         *     lookup and differ by one insert. A validation error names the field and
+         *     the rule, never a value. The limits are per address: 3 a minute and 10
+         *     an hour.
+         */
+        post: operations["submitLead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -3104,6 +3148,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The consultation requests
+         * @description The requests the public form stored, newest first. `status` narrows to
+         *     one status. `q` matches the name, ignoring case and accents (D-11), or
+         *     the phone number by its digits: any other character of `q` is dropped
+         *     before the number is compared.
+         */
+        get: operations["listLeads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/leads/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        /**
+         * One consultation request
+         * @description The request the notification email links to, with the consent it was
+         *     sent with.
+         */
+        get: operations["getLead"];
+        put?: never;
+        post?: never;
+        /**
+         * Remove a consultation request
+         * @description Deletes the request for good, as when the person asks the centre to
+         *     remove their details. One audit row, `lead.deleted`, names the caller
+         *     and the request's id and nothing of what it held.
+         */
+        delete: operations["deleteLead"];
+        options?: never;
+        head?: never;
+        /**
+         * Record how a consultation request was handled
+         * @description Changes the status, the note, or both. A status that differs from the
+         *     stored one records the caller and the time as `handledBy` and
+         *     `handledAt`. One audit row, `lead.updated`, names the caller and holds
+         *     the status before and after and whether the note changed: never the
+         *     note, the name or the phone number, because the audit log outlives the
+         *     request. A body that changes nothing writes nothing.
+         */
+        patch: operations["updateLead"];
+        trace?: never;
+    };
     "/admin/summary": {
         parameters: {
             query?: never;
@@ -3113,11 +3218,12 @@ export interface paths {
         };
         /**
          * The Admin console's nav counts
-         * @description The one count the Admin sidebar draws as a badge: the accounts that
-         *     must change their password (DG-54). It is the number the Overview's
-         *     `must_change_password` attention row carries, counted by the same rule.
-         *     `mustChangePassword` is `null` without `people.users.manage`, when the
-         *     count is not run.
+         * @description The counts the Admin sidebar draws as badges. `mustChangePassword` is
+         *     the accounts that must change their password (DG-54): the number the
+         *     Overview's `must_change_password` attention row carries, counted by the
+         *     same rule, and `null` without `people.users.manage`, when the count is
+         *     not run. `newLeads` is the consultation requests nobody has handled
+         *     yet, and `null` without `system.leads`.
          */
         get: operations["getAdminSummary"];
         put?: never;
@@ -5033,6 +5139,7 @@ export interface components {
             retention: components["schemas"]["RetentionPolicy"];
             limits: components["schemas"]["UsageLimits"];
             limitDefaults: components["schemas"]["UsageLimitDefaults"];
+            leadRecipients: components["schemas"]["LeadRecipients"];
             /**
              * Format: int64
              * @description Grows by one with every save; a save names the revision it was read at.
@@ -5046,13 +5153,14 @@ export interface components {
         /**
          * @description The whole document to store, and the revision it was read at. Without
          *     `limits` the stored limits are kept, so a client that predates them
-         *     changes none.
+         *     changes none; the same holds for `leadRecipients`.
          */
         OrganizationSettingsInput: {
             organization: components["schemas"]["OrganizationProfile"];
             signIn: components["schemas"]["SignInPolicy"];
             retention: components["schemas"]["RetentionPolicy"];
             limits?: components["schemas"]["UsageLimits"];
+            leadRecipients?: components["schemas"]["LeadRecipients"];
             /** Format: int64 */
             expectedRevision: number;
         };
@@ -5115,6 +5223,116 @@ export interface components {
             type: "image/png";
             width: number;
             height: number;
+        };
+        /**
+         * @description The addresses told of each new consultation request, at most five,
+         *     stored lower-case. Each gets an email without the phone number and the
+         *     full name, and a link to the request in the Admin console. Empty sends
+         *     none.
+         */
+        LeadRecipients: string[];
+        /**
+         * @description A version of the privacy notice at `/privacy` on the landing site. The
+         *     form sends the version it showed, and the request is stored with it,
+         *     so it says what each person agreed to. A changed notice adds a value.
+         * @enum {string}
+         */
+        PrivacyNoticeVersion: "2026-11";
+        /**
+         * @description A course the form offers.
+         * @enum {string}
+         */
+        LeadInterest: "ielts" | "toeic" | "communication" | "kids" | "business";
+        /**
+         * @description Who the course is for.
+         * @enum {string}
+         */
+        LeadCourseFor: "self" | "child" | "company";
+        /**
+         * @description When to call: any time, 8:00 to 12:00, 13:00 to 17:00, or 18:00 to
+         *     20:00, in the centre's time zone.
+         * @enum {string}
+         */
+        LeadCallTime: "any" | "morning" | "afternoon" | "evening";
+        /** @enum {string} */
+        LeadStatus: "new" | "contacted" | "closed";
+        /**
+         * @description What the consultation form sends. Nothing about the caller is added to
+         *     it: the stored request holds no IP address and nothing about the
+         *     device.
+         */
+        LeadInput: {
+            /**
+             * @description Composed to NFC and trimmed, each run of white space made one
+             *     space. A name that is then empty, or holds a control or an
+             *     invisible character, is refused with `VALIDATION_FAILED` naming
+             *     `fullName`.
+             */
+            fullName: string;
+            /**
+             * @description As typed. The server keeps its digits only, and refuses fewer
+             *     than 9 or more than 15 of them with `VALIDATION_FAILED` naming
+             *     `phone`.
+             */
+            phone: string;
+            interests: components["schemas"]["LeadInterest"][];
+            courseFor: components["schemas"]["LeadCourseFor"];
+            callTime: components["schemas"]["LeadCallTime"];
+            /**
+             * @description The language of the page when the form was sent.
+             * @enum {string}
+             */
+            locale: "vi" | "en";
+            /**
+             * @description The box the person ticked. Anything but `true` is refused.
+             * @enum {boolean}
+             */
+            consent: true;
+            privacyNoticeVersion: components["schemas"]["PrivacyNoticeVersion"];
+            /**
+             * @description A field no person sees or fills. A request that fills it, with
+             *     anything at all, is answered as any other and is not stored. It
+             *     has no length of its own, so that no value put in it is answered
+             *     differently; the 4 KiB body limit bounds it.
+             */
+            website?: string;
+        };
+        /** @description The one answer `submitLead` gives a request it accepts. */
+        LeadReceipt: {
+            /** @enum {boolean} */
+            received: true;
+        };
+        /** @description A consultation request as the Admin console reads it. */
+        Lead: {
+            id: components["schemas"]["Uuid"];
+            fullName: string;
+            /** @description The digits of the number the person typed. */
+            phone: string;
+            interests: components["schemas"]["LeadInterest"][];
+            courseFor: components["schemas"]["LeadCourseFor"];
+            callTime: components["schemas"]["LeadCallTime"];
+            /** @enum {string} */
+            locale: "vi" | "en";
+            /** @description The version of the privacy notice the person agreed to. */
+            privacyNoticeVersion: string;
+            consentedAt: components["schemas"]["Timestamp"];
+            status: components["schemas"]["LeadStatus"];
+            /** @description The centre's own note on the request, or `null`. */
+            note: string | null;
+            /** @description Who last changed the status, or `null` while nobody has, and once that account is gone. */
+            handledBy: {
+                id: components["schemas"]["Uuid"];
+                name: string;
+            } | null;
+            /** @description When the status last changed, or `null`. */
+            handledAt: components["schemas"]["Timestamp"] | null;
+            createdAt: components["schemas"]["Timestamp"];
+        };
+        /** @description The fields to change. A field left out keeps its value. */
+        LeadUpdate: {
+            status?: components["schemas"]["LeadStatus"];
+            /** @description Trimmed; empty after trimming, or `null`, removes the note. */
+            note?: string | null;
         };
         MaintenanceWindow: {
             startsAt: components["schemas"]["Timestamp"];
@@ -7547,6 +7765,8 @@ export interface components {
         AdminSummary: {
             /** @description Enabled accounts on a temporary password; `null` without `people.users.manage`. */
             mustChangePassword: number | null;
+            /** @description Consultation requests whose status is `new`; `null` without `system.leads`. */
+            newLeads: number | null;
         };
         /**
          * @description What the centre uses against its limits (CR-002, D-060), each limit
@@ -10164,6 +10384,53 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    submitLead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadInput"];
+            };
+        };
+        responses: {
+            /** @description Received. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadReceipt"];
+                };
+            };
+            /**
+             * @description The body fails its schema (`consent` other than `true`, a
+             *     `privacyNoticeVersion` this server does not know, an unknown
+             *     interest), or `VALIDATION_FAILED` naming `fullName` or `phone`.
+             */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description The body is over 4 KiB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             429: components["responses"]["TooManyRequests"];
         };
     };
@@ -15479,6 +15746,133 @@ export interface operations {
             };
             401: components["responses"]["Unauthorized"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listLeads: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["LeadStatus"];
+                /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
+                q?: components["parameters"]["Query"];
+                /**
+                 * @description 1-based page number. Lists are OFFSET-paginated so a client can draw
+                 *     numbered pages (O-20 overrides §13.8's keyset rule for the teacher's
+                 *     lists: at this scale the teacher wants "trang 3 / 26" more than
+                 *     stability under concurrent inserts). A page past the end is an empty
+                 *     `items` with the same `total`.
+                 *
+                 *     Page size is `limit`, declared per operation with its own default -- a
+                 *     media grid wants a different page from a table of tests. The response
+                 *     echoes the size actually used as `pageSize`; compute page counts from
+                 *     that and `total`, never from an assumed size.
+                 */
+                page?: components["parameters"]["Page"];
+                limit?: 10 | 20 | 50;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description `private, no-store`. */
+                    "Cache-Control": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageInfo"] & {
+                        items: components["schemas"]["Lead"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getLead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description `private, no-store`. */
+                    "Cache-Control": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lead"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteLead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateLead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeadUpdate"];
+            };
+        };
+        responses: {
+            /** @description The request as stored. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Lead"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            401: components["responses"]["Unauthorized"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
         };
     };
     getAdminSummary: {
