@@ -9,6 +9,7 @@ export declare const OPERATIONS: {
   readonly "getPublicStatus": { readonly method: "get"; readonly path: "/public/status" };
   readonly "getPublicOrganization": { readonly method: "get"; readonly path: "/public/organization" };
   readonly "getOrganizationLogo": { readonly method: "get"; readonly path: "/public/organization/logo" };
+  readonly "submitLead": { readonly method: "post"; readonly path: "/public/leads" };
   readonly "login": { readonly method: "post"; readonly path: "/auth/login" };
   readonly "googleAuth": { readonly method: "post"; readonly path: "/auth/google" };
   readonly "checkSetPasswordLink": { readonly method: "post"; readonly path: "/auth/set-password/check" };
@@ -131,6 +132,10 @@ export declare const OPERATIONS: {
   readonly "setRolePermissions": { readonly method: "put"; readonly path: "/admin/roles/permissions" };
   readonly "updateRole": { readonly method: "patch"; readonly path: "/admin/roles/{id}" };
   readonly "getAdminOverview": { readonly method: "get"; readonly path: "/admin/overview" };
+  readonly "listLeads": { readonly method: "get"; readonly path: "/admin/leads" };
+  readonly "getLead": { readonly method: "get"; readonly path: "/admin/leads/{id}" };
+  readonly "deleteLead": { readonly method: "delete"; readonly path: "/admin/leads/{id}" };
+  readonly "updateLead": { readonly method: "patch"; readonly path: "/admin/leads/{id}" };
   readonly "getAdminSummary": { readonly method: "get"; readonly path: "/admin/summary" };
   readonly "getUsage": { readonly method: "get"; readonly path: "/admin/usage" };
   readonly "openDocsSession": { readonly method: "post"; readonly path: "/admin/docs-session" };
