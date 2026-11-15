@@ -33,8 +33,11 @@ Contract first, code second:
 
 1. **PR here.** Edit `api/openapi.yaml` (or a catalog), `make gen`, commit the
    result. CI lints, tests, checks for drift and runs oasdiff against the
-   merge-base. A breaking change needs the `contract-breaking` label and a
-   D-entry or the owner's approval (D-080).
+   merge-base. The gate blocks: a breaking change fails the PR unless it
+   carries the `contract-breaking` label, with a D-entry or the owner's approval
+   in its body (D-080), and then needs a new minor at release. Adding or
+   removing the label runs the gate again. A new value in a response enum
+   (an `ErrorCode`, a question type) counts as breaking.
 2. **PR in api** on the same contract (`make gen CONTRACT=../sdk/api/openapi.yaml`
    there). The server does not build until every new operation has a handler.
    **This PR merges into `develop` only once that api PR is green** (D-082 (iii)).
