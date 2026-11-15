@@ -4,6 +4,9 @@ name: CI
 # drift, and the breaking-change gate against the merge-base (D-080, D-082).
 on:
   pull_request:
+    # labeled and unlabeled too: the gate reads the contract-breaking label,
+    # so adding or removing it has to run the gate again on the same commit.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   push:
     branches: [main, develop]
 
@@ -54,11 +57,15 @@ jobs:
       - name: The SDK scripts' own tests
         run: node --test "scripts/sdk/tests/*.test.mjs"
 
-      # Report-only until the gate has been run over the contract's history
-      # (D-080): findings show as warnings and in the job summary.
+      # Blocking since the gate was run over the contract's history (D-080,
+      # Quizzivy/sdk#3): a breaking change without the contract-breaking label
+      # fails the job, and on a PR into main so does a version that does not
+      # move as the release rules say. Findings accepted in advance go in
+      # api/oasdiff-ignore.txt, each with its reason.
       - name: SDK gate (breaking changes since the merge-base)
         if: github.event_name == 'pull_request'
         env:
+          SDK_GATE: block
           SDK_BASE: origin/${{ github.base_ref }}
           SDK_RELEASE: ${{ github.base_ref == 'main' }}
           CONTRACT_BREAKING: ${{ contains(github.event.pull_request.labels.*.name, 'contract-breaking') }}

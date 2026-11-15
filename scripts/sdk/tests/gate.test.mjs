@@ -108,3 +108,10 @@ test('a tool or base failure warns while report-only and fails when blocking', (
   assert.match(base.stdout, /could not run: no merge-base with nope/);
   assert.notEqual(gate(dir, { SDK_BASE: 'nope', SDK_GATE: 'block' }).status, 0);
 });
+
+// Quizzivy/sdk#3: CI runs the gate blocking, and again when a label changes.
+test('CI runs the gate blocking and re-runs it when the label changes', () => {
+  const ci = readFileSync(new URL('../../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  assert.match(ci, /types: \[opened, synchronize, reopened, labeled, unlabeled\]/);
+  assert.match(ci, /SDK_GATE: block/);
+});
