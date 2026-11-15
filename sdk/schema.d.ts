@@ -3358,8 +3358,11 @@ export interface paths {
          *
          *     **Search.** `q` matches, without regard to case or accents, the actor's
          *     name or email, the sentence that words the action in either language,
-         *     and the label of the user, class, test, assignment, attempt, media file,
-         *     import or question group an entry is about.
+         *     the label of the user, class, test, assignment, attempt, media file,
+         *     import, question group or role an entry is about, and the names the
+         *     list gives an entry with no actor: "Hệ thống" / "System" for the
+         *     system's own entries, "Người dùng đã xoá" / "Deleted user" for those of
+         *     an account since removed.
          *
          *     **Categories.** An entry's category follows from the kind of thing it
          *     is about. Entries about the organization, exports, maintenance,
@@ -7612,8 +7615,14 @@ export interface components {
             id: number;
             /** Format: date-time */
             occurredAt: string;
-            /** @description Who did it; `null` is the system itself, or an account since removed. */
+            /** @description Who did it; `null` is the system itself, or an account since removed (`actorRemoved`). */
             actor: components["schemas"]["AuditActor"] | null;
+            /**
+             * @description Present and true when the entry was made by an account that has
+             *     since been removed: `actor` is then `null`. An entry with `actor:
+             *     null` and no `actorRemoved` is the system's own work.
+             */
+            actorRemoved?: boolean;
             /**
              * @description A stable key such as `class.created`. The sentence that words it is
              *     the client's, from `audit.action.<action>`; an action a client has
@@ -8109,7 +8118,13 @@ export interface components {
              *     content is sent. Scores and the grader's comment are unchanged.
              */
             answerRemoved?: boolean;
-            /** @description Present only when `review.showScore`. `null` while awaiting manual grading. */
+            /**
+             * @description Present only when `review.showScore`. `null` while awaiting manual
+             *     grading, and `null` for an answer removed under the retention policy
+             *     before anyone marked it (`answerRemoved`): it was not answered wrong,
+             *     and it is never marked now. A removed answer that was marked keeps
+             *     its mark.
+             */
             earned?: components["schemas"]["Points"] | null;
             pendingManual?: boolean;
             graderComment?: string | null;
@@ -9230,6 +9245,18 @@ export interface components {
             /** @description Write an explanation for each question. */
             explanations: boolean;
             language: components["schemas"]["AiLanguage"];
+            /**
+             * @description Write each `multiple_choice` question as "Choose N": its prompt
+             *     says how many to choose, and the draft carries `selectCount`, the
+             *     number of its correct options (2 to 7). Off when absent.
+             */
+            chooseN?: boolean;
+            /**
+             * @description A word limit for the `short_answer` questions: each is written to be
+             *     answered within it, and its draft carries it. Absent or `null`, the
+             *     drafts carry none.
+             */
+            maxWords?: components["schemas"]["MaxWords"];
         };
         /**
          * @description A draft question. For a choice type `options` holds the options in order
@@ -9253,6 +9280,10 @@ export interface components {
             answerKey: string[];
             /** @description Empty when the request did not ask for explanations. */
             explanation: string;
+            /** @description `multiple_choice` only, present when the request asked for `chooseN`: the number of correct options, which the question is saved with. */
+            selectCount?: components["schemas"]["SelectCount"];
+            /** @description `short_answer` only, present when the request set `maxWords`: the limit the question is saved with. */
+            maxWords?: components["schemas"]["MaxWords"];
         };
         /** @description One item of a drafted matching question and the choice that answers it, as written in the question's `options`. */
         AiGeneratedMatchItem: {
@@ -9354,6 +9385,16 @@ export interface components {
         };
         AiVariantResult: {
             changes: components["schemas"]["AiVariantChange"][];
+            /** @description The questions of the draft the pass read, group members included. */
+            questions: number;
+            /**
+             * @description The questions with at least one change in `changes`. The others are
+             *     left as they are: the model proposed nothing safe for them, or their
+             *     request failed or ran out of time.
+             */
+            changedQuestions: number;
+            /** @description True when the pass proposed more than 300 changes and those past the 300th, in paper order, were left out. */
+            capped: boolean;
             usage: components["schemas"]["AiUsage"];
         };
         AiExplanationRequest: {
