@@ -3358,8 +3358,11 @@ export interface paths {
          *
          *     **Search.** `q` matches, without regard to case or accents, the actor's
          *     name or email, the sentence that words the action in either language,
-         *     and the label of the user, class, test, assignment, attempt, media file,
-         *     import or question group an entry is about.
+         *     the label of the user, class, test, assignment, attempt, media file,
+         *     import, question group or role an entry is about, and the names the
+         *     list gives an entry with no actor: "Hệ thống" / "System" for the
+         *     system's own entries, "Người dùng đã xoá" / "Deleted user" for those of
+         *     an account since removed.
          *
          *     **Categories.** An entry's category follows from the kind of thing it
          *     is about. Entries about the organization, exports, maintenance,
@@ -6198,6 +6201,7 @@ export interface components {
             options?: components["schemas"]["AdminQuestionOption"][];
             blanks?: components["schemas"]["AdminQuestionBlank"][];
             maxWords?: components["schemas"]["MaxWords"];
+            essayMaxWords?: components["schemas"]["EssayMaxWords"];
             /** @description `essay` only, in authored order. */
             rubric?: components["schemas"]["RubricCriterion"][];
             /** @description An essay's band, once graded. Absent on every other type. */
@@ -7546,6 +7550,13 @@ export interface components {
          *     was typed, and the grader sees an over-limit badge.
          */
         MaxWords: number | null;
+        /**
+         * @description `essay` only: the word limit, as `maxWords` is a short answer's. Advice,
+         *     never truncation: the engine counts words and flags "too many", the
+         *     server stores whatever was typed, and the grader sees an over-limit
+         *     badge. Null is no limit.
+         */
+        EssayMaxWords: number | null;
         /** @description `matching` only, where it is required: whether one choice may answer more than one item. Null on every other type. */
         MatchAllowReuse: boolean | null;
         AdminQuestionBlank: {
@@ -7612,8 +7623,14 @@ export interface components {
             id: number;
             /** Format: date-time */
             occurredAt: string;
-            /** @description Who did it; `null` is the system itself, or an account since removed. */
+            /** @description Who did it; `null` is the system itself, or an account since removed (`actorRemoved`). */
             actor: components["schemas"]["AuditActor"] | null;
+            /**
+             * @description Present and true when the entry was made by an account that has
+             *     since been removed: `actor` is then `null`. An entry with `actor:
+             *     null` and no `actorRemoved` is the system's own work.
+             */
+            actorRemoved?: boolean;
             /**
              * @description A stable key such as `class.created`. The sentence that words it is
              *     the client's, from `audit.action.<action>`; an action a client has
@@ -7937,6 +7954,7 @@ export interface components {
             sampleAnswer?: string | null;
             selectCount?: components["schemas"]["SelectCount"];
             maxWords?: components["schemas"]["MaxWords"];
+            essayMaxWords?: components["schemas"]["EssayMaxWords"];
             matchAllowReuse?: components["schemas"]["MatchAllowReuse"];
             /** @description `matching` only, in authored order. The choices are `options`, none of them marked correct. */
             matchItems?: components["schemas"]["AdminMatchItem"][];
@@ -8034,6 +8052,8 @@ export interface components {
             selectCount?: components["schemas"]["SelectCount"];
             /** @description `short_answer` only. A rule the student is told; the engine counts words and never cuts text. */
             maxWords?: components["schemas"]["MaxWords"];
+            /** @description `essay` only. A rule the student is told; the engine counts words and never cuts text. */
+            essayMaxWords?: components["schemas"]["EssayMaxWords"];
             matchAllowReuse?: components["schemas"]["MatchAllowReuse"];
             /** @description `matching` only, in authored order. The choices are `options`. */
             matchItems?: components["schemas"]["StudentMatchItem"][];
@@ -8109,7 +8129,13 @@ export interface components {
              *     content is sent. Scores and the grader's comment are unchanged.
              */
             answerRemoved?: boolean;
-            /** @description Present only when `review.showScore`. `null` while awaiting manual grading. */
+            /**
+             * @description Present only when `review.showScore`. `null` while awaiting manual
+             *     grading, and `null` for an answer removed under the retention policy
+             *     before anyone marked it (`answerRemoved`): it was not answered wrong,
+             *     and it is never marked now. A removed answer that was marked keeps
+             *     its mark.
+             */
             earned?: components["schemas"]["Points"] | null;
             pendingManual?: boolean;
             graderComment?: string | null;
@@ -8509,7 +8535,7 @@ export interface components {
          *     policy and transcript. `items` is the text of a matching question's
          *     items in their order, `rubric` an essay's criterion labels in their
          *     order, and `rules` the rules a student is told: a multiple choice's
-         *     `selectCount`, a short answer's `maxWords` and a matching question's
+         *     `selectCount`, a short answer's `maxWords`, an essay's `essayMaxWords` and a matching question's
          *     `matchAllowReuse`. `context` is the shared material of the group
          *     the question belongs to, or its being in a group at all, and `section`
          *     the part of the paper it sits in. The correct options, the accepted
@@ -8531,9 +8557,10 @@ export interface components {
              *     For a TFNG question, the value of the correct option instead:
              *     `true`, `false` or `not_given`, which the reader names in its own
              *     language. For a matching question, one label per item in order:
-             *     the item's key, an arrow and the key of the choice it is keyed to,
-             *     as the editor draws them (D-063, `A → iii`), or `–` in place of
-             *     the choice when it is keyed to none.
+             *     the item's key, a colon, a space and the key of the choice it is
+             *     keyed to (D-063, `A: iii`), or `–` in place of the choice when it
+             *     is keyed to none (`A: –`). The editor draws an arrow between the
+             *     two; the label has none, since the arrow is outside the app's font.
              */
             answerFrom?: string[];
             /** @description The labels of the correct options in `to`, in order, as in `answerFrom`. */
@@ -9229,6 +9256,24 @@ export interface components {
             /** @description Write an explanation for each question. */
             explanations: boolean;
             language: components["schemas"]["AiLanguage"];
+            /**
+             * @description Write each `multiple_choice` question as "Choose N": its prompt
+             *     says how many to choose, and the draft carries `selectCount`, the
+             *     number of its correct options (2 to 7). Off when absent.
+             */
+            chooseN?: boolean;
+            /**
+             * @description A word limit for the `short_answer` questions: each is written to be
+             *     answered within it, and its draft carries it. Absent or `null`, the
+             *     drafts carry none.
+             */
+            maxWords?: components["schemas"]["MaxWords"];
+            /**
+             * @description A word limit for the `essay` questions: each task is written for an
+             *     answer within it, and its draft carries it. Absent or `null`, the
+             *     drafts carry none.
+             */
+            essayMaxWords?: components["schemas"]["EssayMaxWords"];
         };
         /**
          * @description A draft question. For a choice type `options` holds the options in order
@@ -9252,6 +9297,12 @@ export interface components {
             answerKey: string[];
             /** @description Empty when the request did not ask for explanations. */
             explanation: string;
+            /** @description `multiple_choice` only, present when the request asked for `chooseN`: the number of correct options, which the question is saved with. */
+            selectCount?: components["schemas"]["SelectCount"];
+            /** @description `short_answer` only, present when the request set `maxWords`: the limit the question is saved with. */
+            maxWords?: components["schemas"]["MaxWords"];
+            /** @description `essay` only, present when the request set `essayMaxWords`: the limit the question is saved with. */
+            essayMaxWords?: components["schemas"]["EssayMaxWords"];
         };
         /** @description One item of a drafted matching question and the choice that answers it, as written in the question's `options`. */
         AiGeneratedMatchItem: {
@@ -9353,6 +9404,16 @@ export interface components {
         };
         AiVariantResult: {
             changes: components["schemas"]["AiVariantChange"][];
+            /** @description The questions of the draft the pass read, group members included. */
+            questions: number;
+            /**
+             * @description The questions with at least one change in `changes`. The others are
+             *     left as they are: the model proposed nothing safe for them, or their
+             *     request failed or ran out of time.
+             */
+            changedQuestions: number;
+            /** @description True when the pass proposed more than 300 changes and those past the 300th, in paper order, were left out. */
+            capped: boolean;
             usage: components["schemas"]["AiUsage"];
         };
         AiExplanationRequest: {
@@ -9781,7 +9842,7 @@ export interface components {
          *     `{{n}}` ordinals for legacy Markdown, `tfng` has exactly three options with one correct,
          *     `matching` has 2 to 12 options none marked correct and 2 to 20 items each keyed to one of them,
          *     `selectCount` is for `multiple_choice` and at most its option count minus one, `maxWords` is for
-         *     `short_answer`, `matchAllowReuse` is required on `matching` and refused elsewhere, `rubric` is for
+         *     `short_answer`, `essayMaxWords` for `essay`, `matchAllowReuse` is required on `matching` and refused elsewhere, `rubric` is for
          *     `essay`, an audio policy requires an audio asset and alt text an image — are validated by the
          *     server and again at publish (§8). Failing them returns
          *     `VALIDATION_FAILED` with per-field `details`.
@@ -9836,6 +9897,7 @@ export interface components {
             sampleAnswer?: string | null;
             selectCount?: components["schemas"]["SelectCount"];
             maxWords?: components["schemas"]["MaxWords"];
+            essayMaxWords?: components["schemas"]["EssayMaxWords"];
             matchAllowReuse?: components["schemas"]["MatchAllowReuse"];
             /** @description `matching` only, 2 to 20 items. Order in the array is the stored ordinal. */
             matchItems?: components["schemas"]["MatchItemInput"][];
@@ -9875,7 +9937,7 @@ export interface components {
          *     `{{n}}` ordinals for legacy Markdown, `tfng` has exactly three options with one correct,
          *     `matching` has 2 to 12 options none marked correct and 2 to 20 items each keyed to one of them,
          *     `selectCount` is for `multiple_choice` and at most its option count minus one, `maxWords` is for
-         *     `short_answer`, `matchAllowReuse` is required on `matching` and refused elsewhere, `rubric` is for
+         *     `short_answer`, `essayMaxWords` for `essay`, `matchAllowReuse` is required on `matching` and refused elsewhere, `rubric` is for
          *     `essay`, an audio policy requires an audio asset and alt text an image — are validated by the
          *     server and again at publish (§8). Failing them returns
          *     `VALIDATION_FAILED` with per-field `details`.
@@ -9930,6 +9992,7 @@ export interface components {
             sampleAnswer?: string | null;
             selectCount?: components["schemas"]["SelectCount"];
             maxWords?: components["schemas"]["MaxWords"];
+            essayMaxWords?: components["schemas"]["EssayMaxWords"];
             matchAllowReuse?: components["schemas"]["MatchAllowReuse"];
             /** @description `matching` only, 2 to 20 items. Order in the array is the stored ordinal. */
             matchItems?: components["schemas"]["MatchItemInput"][];
