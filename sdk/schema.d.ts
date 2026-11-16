@@ -1090,7 +1090,9 @@ export interface paths {
          * @description The §8 question bank, with type and tag filters plus search.
          *
          *     With `setId`, the list is that set's questions instead of the
-         *     caller's bank: any set the caller can read, in set order unless a
+         *     caller's bank: any set the caller can read, for a caller holding
+         *     `content.questions.write` (the set operations' own permission; anyone
+         *     else gets 404), in set order unless a
          *     sort is given, each row with the caller's `access` and its `owner`.
          *     `bankTotal` is then the set's size.
          */
@@ -12903,6 +12905,15 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The resource is still referenced or has not reached its required inactive state. */
             409: {
@@ -12963,6 +12974,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description `STALE_WRITE` — edited elsewhere since `expectedUpdatedAt`, with `details.updatedBy` (`PersonRef` or `null`, who saved last) and `details.updatedAt`; `GROUP_OUTLINE_REQUIRED` — a legacy question-only outline cannot replace a draft containing shared groups. Metadata-only updates remain supported. `TEST_ARCHIVED` — restore the test before a mixed-outline edit. */
             409: {
@@ -13097,6 +13117,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. `FORBIDDEN` — the caller lacks `content.tests.publish`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description `PUBLISH_VALIDATION_FAILED`. **Every** problem is returned at once,
@@ -13140,6 +13169,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test; a recipient uses `copyTest`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
         };
     };
@@ -13312,6 +13350,15 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The version is referenced or current. Archiving does not prevent deletion of an unused, non-current version. */
             409: {
@@ -13396,6 +13443,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The test is archived (`TEST_ARCHIVED`) or the expected update time is stale (`STALE_WRITE`). */
             409: {
@@ -13436,6 +13492,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description The test is archived (`TEST_ARCHIVED`), the expected update time is
@@ -13694,6 +13759,15 @@ export interface operations {
         responses: {
             204: components["responses"]["NoContent"];
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller can read the question but does not own it. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description `QUESTION_REFERENCED` — still referenced by a draft test outline.
@@ -13794,6 +13868,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — without `forTestId`, a question the caller does not own; `SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
         };
     };
