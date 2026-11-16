@@ -10662,7 +10662,7 @@ export interface components {
          *     `text` is null.
          */
         MessagePreview: {
-            /** @description The body's first 120 characters */
+            /** @description The body's first 120 characters, on one line. */
             text: string | null;
             attachmentName: string | null;
             /** @description The caller sent it. */
@@ -10689,7 +10689,7 @@ export interface components {
         StaffThread: {
             thread: components["schemas"]["StaffThreadRef"];
             title: string;
-            /** @description A direct row's student photo */
+            /** @description A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none. */
             avatarUrl: string | null;
             classNames: string[];
             /** @description A class row's active students; `null` on a direct row. */
@@ -10704,7 +10704,7 @@ export interface components {
              */
             lastMessageAt: string | null;
             preview: components["schemas"]["MessagePreview"] | null;
-            /** @description Messages past the caller's read pointer */
+            /** @description Messages past the caller's read pointer, not counting their own. */
             unread: number;
         };
         MessageSender: {

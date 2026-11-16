@@ -14254,8 +14254,7 @@
               "null"
             ],
             "maxLength": 120,
-            "description": "The body's first 120 characters",
-            "on one line.": null
+            "description": "The body's first 120 characters, on one line."
           },
           "attachmentName": {
             "type": [
@@ -14331,8 +14330,7 @@
               "string",
               "null"
             ],
-            "description": "A direct row's student photo",
-            "a presigned GET valid 24 hours; `null` for a class or when there is none.": null
+            "description": "A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none."
           },
           "classNames": {
             "type": "array",
@@ -14379,8 +14377,7 @@
           "unread": {
             "type": "integer",
             "minimum": 0,
-            "description": "Messages past the caller's read pointer",
-            "not counting their own.": null
+            "description": "Messages past the caller's read pointer, not counting their own."
           }
         }
       },

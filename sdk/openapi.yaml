@@ -7663,7 +7663,7 @@ components:
       required: [text, attachmentName, mine]
       additionalProperties: false
       properties:
-        text: { type: [string, 'null'], maxLength: 120, description: The body's first 120 characters, on one line. }
+        text: { type: [string, 'null'], maxLength: 120, description: "The body's first 120 characters, on one line." }
         attachmentName: { type: [string, 'null'] }
         mine: { type: boolean, description: The caller sent it. }
 
@@ -7692,7 +7692,7 @@ components:
       properties:
         thread: { $ref: '#/components/schemas/StaffThreadRef' }
         title: { type: string }
-        avatarUrl: { type: [string, 'null'], description: A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none. }
+        avatarUrl: { type: [string, 'null'], description: "A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none." }
         classNames: { type: array, items: { type: string } }
         studentCount: { type: [integer, 'null'], minimum: 0, description: A class row's active students; `null` on a direct row. }
         former: { type: boolean }
@@ -7701,7 +7701,7 @@ components:
         lastMessageAt: { type: [string, 'null'], format: date-time, description: '`null` for a class channel nobody has posted in, and for a candidate.' }
         preview:
           oneOf: [{ $ref: '#/components/schemas/MessagePreview' }, { type: 'null' }]
-        unread: { type: integer, minimum: 0, description: Messages past the caller's read pointer, not counting their own. }
+        unread: { type: integer, minimum: 0, description: "Messages past the caller's read pointer, not counting their own." }
 
     MessageSender:
       type: object
