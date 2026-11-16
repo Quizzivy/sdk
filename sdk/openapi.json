@@ -14262,8 +14262,7 @@
               "null"
             ],
             "maxLength": 120,
-            "description": "The body's first 120 characters",
-            "on one line.": null
+            "description": "The body's first 120 characters, on one line."
           },
           "attachmentName": {
             "type": [
@@ -14339,8 +14338,7 @@
               "string",
               "null"
             ],
-            "description": "A direct row's student photo",
-            "a presigned GET valid 24 hours; `null` for a class or when there is none.": null
+            "description": "A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none."
           },
           "classNames": {
             "type": "array",
@@ -14387,8 +14385,7 @@
           "unread": {
             "type": "integer",
             "minimum": 0,
-            "description": "Messages past the caller's read pointer",
-            "not counting their own.": null
+            "description": "Messages past the caller's read pointer, not counting their own."
           }
         }
       },
@@ -15314,8 +15311,7 @@
           },
           "name": {
             "type": "string",
-            "description": "The test's title or the set's name",
-            "read now.": null
+            "description": "The test's title or the set's name, read now."
           },
           "owner": {
             "$ref": "#/components/schemas/SharedWithMeOwner"
@@ -19809,6 +19805,16 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "description": "`NOT_FOUND` — `setId` names no set the caller can read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       },
@@ -19897,6 +19903,26 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "`SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`NOT_FOUND` — `forTestId` names no test the caller can read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           }
         }
       }
@@ -20435,7 +20461,10 @@
                       "string",
                       "null"
                     ],
-                    "maxLength": 500
+                    "maxLength": 500,
+                    "description": "Trimmed; empty after trimming, or `null`, removes the description.",
+                    "x-go-type": "json.RawMessage",
+                    "x-go-type-skip-optional-pointer": true
                   }
                 }
               }

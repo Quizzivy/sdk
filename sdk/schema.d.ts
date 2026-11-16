@@ -10711,7 +10711,7 @@ export interface components {
          *     `text` is null.
          */
         MessagePreview: {
-            /** @description The body's first 120 characters */
+            /** @description The body's first 120 characters, on one line. */
             text: string | null;
             attachmentName: string | null;
             /** @description The caller sent it. */
@@ -10738,7 +10738,7 @@ export interface components {
         StaffThread: {
             thread: components["schemas"]["StaffThreadRef"];
             title: string;
-            /** @description A direct row's student photo */
+            /** @description A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none. */
             avatarUrl: string | null;
             classNames: string[];
             /** @description A class row's active students; `null` on a direct row. */
@@ -10753,7 +10753,7 @@ export interface components {
              */
             lastMessageAt: string | null;
             preview: components["schemas"]["MessagePreview"] | null;
-            /** @description Messages past the caller's read pointer */
+            /** @description Messages past the caller's read pointer, not counting their own. */
             unread: number;
         };
         MessageSender: {
@@ -11039,7 +11039,7 @@ export interface components {
             shareId: components["schemas"]["Uuid"];
             kind: components["schemas"]["ShareKind"];
             resourceId: components["schemas"]["Uuid"];
-            /** @description The test's title or the set's name */
+            /** @description The test's title or the set's name, read now. */
             name: string;
             owner: components["schemas"]["SharedWithMeOwner"];
             access: components["schemas"]["ShareAccess"];
@@ -13669,6 +13669,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `NOT_FOUND` — `setId` names no set the caller can read. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     createQuestion: {
@@ -13696,6 +13705,24 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `NOT_FOUND` — `forTestId` names no test the caller can read. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     tagQuestions: {
@@ -13998,6 +14025,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name?: string;
+                    /** @description Trimmed; empty after trimming, or `null`, removes the description. */
                     description?: string | null;
                 };
             };
