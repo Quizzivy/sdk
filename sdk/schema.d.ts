@@ -182,11 +182,15 @@ export interface paths {
          *     list, and no more mail goes to it; every other event type is accepted
          *     and ignored. A replayed `svix-id` changes nothing.
          *
-         *     **Leak review (§6.5).** A request without the three headers, or
-         *     whose body is not a JSON object, is refused with `400` by request
-         *     validation before the signature is read, as on every operation. Past
-         *     that, the answer is `204` or `401`, both empty, whatever the body
-         *     says: nothing tells a caller whether an address is
+         *     The three headers are optional in the schema so that a request
+         *     without them is refused by the signature check, `401`, after the
+         *     rate limit has counted it, and not by parameter binding.
+         *
+         *     **Leak review (§6.5).** A body that is not a JSON object, or a header
+         *     over its length, is refused with `400` by request validation before
+         *     the signature is read, as on every operation. Past that, the answer
+         *     is `204` or `401`, both empty, whatever the body says: nothing tells
+         *     a caller whether an address is
          *     known or already suppressed. A forged request cannot suppress an
          *     address, because it cannot sign; the address stored is one Quizzivy
          *     already sent to. The limit is per address: 120 a minute.
@@ -10553,7 +10557,7 @@ export interface components {
          *     | `test.published_by_collaborator` | a teacher | `editorName`, `title`, `version` |
          *     | `message.received` | a teacher | `senderName`, `count`, `excerpt` |
          *     | `message.from_teacher` | a student | `senderName`, `count`, `excerpt`, and `className` for an announcement |
-         *     | `summary.weekly` | a teacher | `count` (papers handed in last week), `toGrade`, `flagged`, `classNames` |
+         *     | `summary.weekly` | a teacher | `count`, `toGrade`, `flagged`, `classNames` |
          *
          *     A message item is one per reader per thread: it is written again,
          *     unread, with the new `count` while the thread stays unread, and marked
@@ -10618,7 +10622,7 @@ export interface components {
         NotificationParams: {
             /** @description The title of the test the assignment gives. */
             title?: string;
-            /** @description Papers handed in (`attempt.submitted`), classes whose pre-v0.8.0 join code was replaced at start-up (`join_codes.rotated`, no longer written), or classes, tests, questions, question groups, media and assignments given to the reader (`content.transferred`). */
+            /** @description Papers handed in (`attempt.submitted`, and last week's on the teacher's classes for `summary.weekly`), classes whose pre-v0.8.0 join code was replaced at start-up (`join_codes.rotated`, no longer written), or classes, tests, questions, question groups, media and assignments given to the reader (`content.transferred`). */
             count?: number;
             /** @description Of the papers handed in, those with an answer waiting for a mark. */
             toGrade?: number;
@@ -10628,7 +10632,7 @@ export interface components {
             notSubmitted?: number;
             studentName?: string;
             className?: string;
-            /** @description At most five names; `count` holds how many classes there are. */
+            /** @description At most five names. For `join_codes.rotated`, `count` holds how many classes there are; for `summary.weekly`, they are the classes the week's figures cover. */
             classNames?: string[];
             closesAt?: components["schemas"]["Timestamp"];
             /** @description AI credits the teacher has used this month. */
@@ -11813,10 +11817,13 @@ export interface operations {
     receiveEmailEvents: {
         parameters: {
             query?: never;
-            header: {
-                "svix-id": string;
-                "svix-timestamp": string;
-                "svix-signature": string;
+            header?: {
+                /** @description Resend's delivery id; without it the answer is `401`. */
+                "svix-id"?: string;
+                /** @description Unix seconds; without it the answer is `401`. */
+                "svix-timestamp"?: string;
+                /** @description One or more `v1,<base64>` signatures; without it the answer is `401`. */
+                "svix-signature"?: string;
             };
             path?: never;
             cookie?: never;
