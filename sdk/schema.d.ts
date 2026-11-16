@@ -10376,7 +10376,7 @@ export interface components {
             shareId: components["schemas"]["Uuid"];
             kind: components["schemas"]["ShareKind"];
             resourceId: components["schemas"]["Uuid"];
-            /** @description The test's title or the set's name */
+            /** @description The test's title or the set's name, read now. */
             name: string;
             owner: components["schemas"]["SharedWithMeOwner"];
             access: components["schemas"]["ShareAccess"];
@@ -12952,6 +12952,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `NOT_FOUND` — `setId` names no set the caller can read. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     createQuestion: {
@@ -12979,6 +12988,24 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `NOT_FOUND` — `forTestId` names no test the caller can read. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     tagQuestions: {
@@ -13281,6 +13308,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name?: string;
+                    /** @description Trimmed; empty after trimming, or `null`, removes the description. */
                     description?: string | null;
                 };
             };
