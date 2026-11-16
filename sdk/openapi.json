@@ -18548,6 +18548,16 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "403": {
+            "description": "`SHARE_OWNER_ONLY` — the caller holds a grant, not the test.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -18725,6 +18735,16 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "`SHARE_READ_ONLY` — the caller holds a Can use grant to the test.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -18917,6 +18937,16 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "403": {
+            "description": "`SHARE_READ_ONLY` — the caller holds a Can use grant to the test. `FORBIDDEN` — the caller lacks `content.tests.publish`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -18966,6 +18996,16 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "`SHARE_OWNER_ONLY` — the caller holds a grant, not the test; a recipient uses `copyTest`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -19311,6 +19351,16 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "403": {
+            "description": "`SHARE_OWNER_ONLY` — the caller holds a grant, not the test.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -19461,6 +19511,16 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "403": {
+            "description": "`SHARE_READ_ONLY` — the caller holds a Can use grant to the test.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -19538,6 +19598,16 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "`SHARE_READ_ONLY` — the caller holds a Can use grant to the test.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -19657,7 +19727,7 @@
         ],
         "x-resource-list": "question",
         "x-permission": "workspace.teacher",
-        "description": "The §8 question bank, with type and tag filters plus search.\n\nWith `setId`, the list is that set's questions instead of the\ncaller's bank: any set the caller can read, in set order unless a\nsort is given, each row with the caller's `access` and its `owner`.\n`bankTotal` is then the set's size.\n",
+        "description": "The §8 question bank, with type and tag filters plus search.\n\nWith `setId`, the list is that set's questions instead of the\ncaller's bank: any set the caller can read, for a caller holding\n`content.questions.write` (the set operations' own permission; anyone\nelse gets 404), in set order unless a\nsort is given, each row with the caller's `access` and its `owner`.\n`bankTotal` is then the set's size.\n",
         "tags": [
           "teacher-questions"
         ],
@@ -20192,6 +20262,16 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "403": {
+            "description": "`SHARE_OWNER_ONLY` — the caller can read the question but does not own it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -20259,6 +20339,16 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "`SHARE_OWNER_ONLY` — without `forTestId`, a question the caller does not own; `SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
