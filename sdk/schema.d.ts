@@ -1629,6 +1629,11 @@ export interface paths {
          *     declare at most 10000 × 10000 pixels; nothing is decoded further, and
          *     the file is kept as it came. A Word file is never opened or
          *     converted on the server, and one that carries macros is refused.
+         *     `filename` is the part's name with any path dropped, at most 200
+         *     characters, and ending in an extension of the sniffed type:
+         *     `report` that holds a PDF is stored as `report.pdf`, and
+         *     `bai-tap.exe` as `bai-tap.exe.pdf`, so a downloaded file opens as
+         *     what it is.
          *
          *     Limited to 20 an hour per staff member.
          */
@@ -1650,9 +1655,13 @@ export interface paths {
         };
         /**
          * Mint the download URL of a message's file
-         * @description For the participants of the thread whose message holds the file, and
-         *     its uploader before it is sent. Anyone else gets 404, an admin
-         *     included. The URL is a credential, so the answer is not stored.
+         * @description For the participants of the thread whose message holds the file (a
+         *     direct thread's staff member and student, and a class channel's
+         *     readers: staff whose class scope reaches the class, and its
+         *     current members), and its uploader before it is sent. Anyone
+         *     else gets 404, as for a missing id: an admin on a direct
+         *     message's file included, whom `scope.all` does not let into the
+         *     thread. The URL is a credential, so the answer is not stored.
          */
         get: operations["getStaffMessageAttachmentUrl"];
         put?: never;
@@ -5346,9 +5355,13 @@ export interface paths {
         };
         /**
          * Mint the download URL of a message's file
-         * @description For the participants of the thread whose message holds the file, and
-         *     its uploader before it is sent. Anyone else gets 404, an admin
-         *     included. The URL is a credential, so the answer is not stored.
+         * @description For the participants of the thread whose message holds the file (a
+         *     direct thread's staff member and student, and a class channel's
+         *     readers: staff whose class scope reaches the class, and its
+         *     current members), and its uploader before it is sent. Anyone
+         *     else gets 404, as for a missing id: an admin on a direct
+         *     message's file included, whom `scope.all` does not let into the
+         *     thread. The URL is a credential, so the answer is not stored.
          */
         get: operations["getStudentMessageAttachmentUrl"];
         put?: never;
