@@ -102,7 +102,7 @@ describe("profile and preference contract boundaries", () => {
     for (const body of [
       null,
       { theme: null },
-      { theme: "neon" },
+      { theme: "sepia" },
       { extra: true },
       { assignmentDefaults: null },
       { assignmentDefaults: { extra: true } },
