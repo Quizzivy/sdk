@@ -14495,7 +14495,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
-            /** @description `MESSAGING_NOT_ALLOWED` — the student's account is disabled or no longer a student, or no thread exists and the pair does not qualify. The thread stays readable. */
+            /** @description `MESSAGING_NOT_ALLOWED` — a messaging peer whose account is disabled or no longer a student. The thread stays readable. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -14504,7 +14504,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `VALIDATION_FAILED` — neither a body nor a file. */
+            /** @description `VALIDATION_FAILED` — neither a body nor a file, or `clientId` already made a message in another thread (`details.clientId`). */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -14620,7 +14620,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description `VALIDATION_FAILED` — neither a body nor a file. */
+            /** @description `VALIDATION_FAILED` — neither a body nor a file, or `clientId` already made a message in another thread (`details.clientId`). */
             422: {
                 headers: {
                     [name: string]: unknown;
