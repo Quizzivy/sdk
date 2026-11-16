@@ -182,8 +182,11 @@ export interface paths {
          *     list, and no more mail goes to it; every other event type is accepted
          *     and ignored. A replayed `svix-id` changes nothing.
          *
-         *     **Leak review (§6.5).** The answer is `204` or `401`, both empty,
-         *     whatever the body says: nothing tells a caller whether an address is
+         *     **Leak review (§6.5).** A request without the three headers, or
+         *     whose body is not a JSON object, is refused with `400` by request
+         *     validation before the signature is read, as on every operation. Past
+         *     that, the answer is `204` or `401`, both empty, whatever the body
+         *     says: nothing tells a caller whether an address is
          *     known or already suppressed. A forged request cannot suppress an
          *     address, because it cannot sign; the address stored is one Quizzivy
          *     already sent to. The limit is per address: 120 a minute.
@@ -11833,6 +11836,7 @@ export interface operations {
                 };
                 content?: never;
             };
+            400: components["responses"]["BadRequest"];
             /** @description The signature is missing, wrong or stale. No body. */
             401: {
                 headers: {
