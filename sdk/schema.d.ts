@@ -162,6 +162,39 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/email-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend's delivery events (bounces and complaints)
+         * @description The webhook Resend calls (O-R5.2, T-R7.15). It accepts only Resend's
+         *     signed deliveries: the Svix signature in `svix-id`, `svix-timestamp`
+         *     and `svix-signature`, an HMAC-SHA256 over `{id}.{timestamp}.{body}`
+         *     with the decoded `RESEND_WEBHOOK_SECRET`, within five minutes of the
+         *     timestamp. A hard bounce (`email.bounced`) or a complaint
+         *     (`email.complained`) puts the recipient's address on the suppression
+         *     list, and no more mail goes to it; every other event type is accepted
+         *     and ignored. A replayed `svix-id` changes nothing.
+         *
+         *     **Leak review (§6.5).** The answer is `204` or `401`, both empty,
+         *     whatever the body says: nothing tells a caller whether an address is
+         *     known or already suppressed. A forged request cannot suppress an
+         *     address, because it cannot sign; the address stored is one Quizzivy
+         *     already sent to. The limit is per address: 120 a minute.
+         */
+        post: operations["receiveEmailEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -10484,6 +10517,7 @@ export interface components {
          *     | `test.published_by_collaborator` | a teacher | `editorName`, `title`, `version` |
          *     | `message.received` | a teacher | `senderName`, `count`, `excerpt` |
          *     | `message.from_teacher` | a student | `senderName`, `count`, `excerpt`, and `className` for an announcement |
+         *     | `summary.weekly` | a teacher | `count` (papers handed in last week), `toGrade`, `flagged`, `classNames` |
          *
          *     A message item is one per reader per thread: it is written again,
          *     unread, with the new `count` while the thread stays unread, and marked
@@ -10499,7 +10533,7 @@ export interface components {
          *     the kind stays so that the notifications it wrote still read.
          * @enum {string}
          */
-        NotificationKind: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "class.joined" | "join_codes.rotated" | "assignment.opened" | "assignment.due_soon" | "assignment.extended" | "result.ready" | "ai.allowance_warning" | "ai.credit_request" | "ai.credit_request.decided" | "content.transferred" | "class.teacher_changed" | "content.shared" | "test.published_by_collaborator" | "message.received" | "message.from_teacher";
+        NotificationKind: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "class.joined" | "join_codes.rotated" | "assignment.opened" | "assignment.due_soon" | "assignment.extended" | "result.ready" | "ai.allowance_warning" | "ai.credit_request" | "ai.credit_request.decided" | "content.transferred" | "class.teacher_changed" | "content.shared" | "test.published_by_collaborator" | "message.received" | "message.from_teacher" | "summary.weekly";
         /**
          * @description The console that reads a notification, and so which of the caller's
          *     notifications a bell counts, lists and clears. Which kinds each one
@@ -10521,14 +10555,22 @@ export interface components {
          *     teachers" for a student). A switch governs the kind of the same name,
          *     `assignment.due_soon` also governs `assignment.opened` and
          *     `assignment.extended`, and `message.received` also governs
-         *     `message.from_teacher`. `class.joined`
+         *     `message.from_teacher`. `summary.weekly` is the teacher's Monday
+         *     summary, by email and, when its in-app switch is on, in the bell.
+         *
+         *     Each switch covers both channels for a student (DG-82): a student's
+         *     `inApp` and `email` are always equal. A teacher's two columns are
+         *     separate, with the deck's defaults: in app on and email off for
+         *     `attempt.submitted` and `assignment.closing`, both on for
+         *     `attempt.flagged` and `message.received`, in app off and email on
+         *     for `summary.weekly`. `class.joined`
          *     `join_codes.rotated`, `class.teacher_changed`, `content.shared` and
          *     `test.published_by_collaborator` have no switch: the sharer's "Send a
          *     notification" decides the first, and the owner always hears of the
          *     second.
          * @enum {string}
          */
-        NotificationEvent: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "assignment.due_soon" | "result.ready" | "message.received";
+        NotificationEvent: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "assignment.due_soon" | "result.ready" | "message.received" | "summary.weekly";
         /**
          * @description What the client builds a notification's sentence from. One closed set
          *     of fields for every kind; `NotificationKind` says which of them a kind
@@ -10580,6 +10622,8 @@ export interface components {
             senderName?: string;
             /** @description The newest message's first 80 characters, or its file's name (`message.*`). */
             excerpt?: string;
+            /** @description Attempts flagged last week (`summary.weekly`). */
+            flagged?: number;
         };
         /**
          * @description Where a click on the notification goes: a page the client resolves from
@@ -10590,13 +10634,13 @@ export interface components {
         NotificationTarget: {
             /**
              * @description `assignment`, `attempt`, `grading`, `classes`, `sharedWithMe`,
-             *     `test` and `messages` are pages of the teaching workspace;
+             *     `test`, `messages` and `dashboard` are pages of the teaching workspace;
              *     `result`, `studentAssignment` and `studentMessages` are the
              *     student's result, the student's page of an assignment and the
              *     student's Messages.
              * @enum {string}
              */
-            route: "assignment" | "attempt" | "grading" | "classes" | "result" | "studentAssignment" | "sharedWithMe" | "test" | "messages" | "studentMessages";
+            route: "assignment" | "attempt" | "grading" | "classes" | "result" | "studentAssignment" | "sharedWithMe" | "test" | "messages" | "studentMessages" | "dashboard";
             assignmentId?: components["schemas"]["Uuid"];
             attemptId?: components["schemas"]["Uuid"];
             /** @description Present for `test`. */
@@ -10627,7 +10671,12 @@ export interface components {
             event: components["schemas"]["NotificationEvent"];
             /** @description While false, no notification this switch governs is written for the caller. */
             inApp: boolean;
-            /** @description Stored and returned. Nothing is sent by email yet. */
+            /**
+             * @description While false, no email this switch governs is sent to the caller.
+             *     A student's write stores it equal to `inApp`, whatever it says
+             *     (DG-82). An email never carries a message's body, a join code, a
+             *     password or a score the review policy does not yet show.
+             */
             email: boolean;
         };
         /** @description Every `NotificationEvent` once. The server answers them in the enum's order. */
@@ -11721,6 +11770,60 @@ export interface operations {
                 };
             };
             429: components["responses"]["TooManyRequests"];
+        };
+    };
+    receiveEmailEvents: {
+        parameters: {
+            query?: never;
+            header: {
+                "svix-id": string;
+                "svix-timestamp": string;
+                "svix-signature": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Received. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The signature is missing, wrong or stale. No body. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The body is over 64 KiB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            /** @description No webhook secret is configured, so no delivery can be verified. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     login: {

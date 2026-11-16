@@ -8,6 +8,7 @@ export const OPERATIONS = Object.freeze({
   "getPublicOrganization": Object.freeze({ method: "get", path: "/public/organization" }),
   "getOrganizationLogo": Object.freeze({ method: "get", path: "/public/organization/logo" }),
   "submitLead": Object.freeze({ method: "post", path: "/public/leads" }),
+  "receiveEmailEvents": Object.freeze({ method: "post", path: "/public/email-events" }),
   "login": Object.freeze({ method: "post", path: "/auth/login" }),
   "googleAuth": Object.freeze({ method: "post", path: "/auth/google" }),
   "checkSetPasswordLink": Object.freeze({ method: "post", path: "/auth/set-password/check" }),
