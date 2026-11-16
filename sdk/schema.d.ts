@@ -1662,6 +1662,11 @@ export interface paths {
          *     declare at most 10000 × 10000 pixels; nothing is decoded further, and
          *     the file is kept as it came. A Word file is never opened or
          *     converted on the server, and one that carries macros is refused.
+         *     `filename` is the part's name with any path dropped, at most 200
+         *     characters, and ending in an extension of the sniffed type:
+         *     `report` that holds a PDF is stored as `report.pdf`, and
+         *     `bai-tap.exe` as `bai-tap.exe.pdf`, so a downloaded file opens as
+         *     what it is.
          *
          *     Limited to 20 an hour per staff member.
          */
@@ -1683,9 +1688,13 @@ export interface paths {
         };
         /**
          * Mint the download URL of a message's file
-         * @description For the participants of the thread whose message holds the file, and
-         *     its uploader before it is sent. Anyone else gets 404, an admin
-         *     included. The URL is a credential, so the answer is not stored.
+         * @description For the participants of the thread whose message holds the file (a
+         *     direct thread's staff member and student, and a class channel's
+         *     readers: staff whose class scope reaches the class, and its
+         *     current members), and its uploader before it is sent. Anyone
+         *     else gets 404, as for a missing id: an admin on a direct
+         *     message's file included, whom `scope.all` does not let into the
+         *     thread. The URL is a credential, so the answer is not stored.
          */
         get: operations["getStaffMessageAttachmentUrl"];
         put?: never;
@@ -4059,7 +4068,10 @@ export interface paths {
          * @description Queues one export for the worker and answers at once. It builds a ZIP
          *     of `users.csv` (no password hashes or tokens), `roles.csv`,
          *     `classes.csv` (no join codes), `class_members.csv`, `tests.csv`,
-         *     `test_versions.csv`, `assignments.csv`, `attempts.csv`, with
+         *     `test_versions.csv`, `assignments.csv`, `attempts.csv`, `leads.csv`,
+         *     `messages_summary.csv` (one row per conversation: its kind, class or
+         *     two participants, message count and first and last message times,
+         *     never a message's text, a file's name or an attachment), with
          *     `answers.csv` when `includeAnswers` is true, and a `README.txt` in
          *     Vietnamese and English that describes each file. Every CSV is UTF-8
          *     with a byte-order mark and CRLF line ends, and a cell that a
@@ -5252,7 +5264,9 @@ export interface paths {
         /**
          * The student's Messages list
          * @description The student's direct threads, and the channels of the classes they
-         *     are in that have at least one post, newest first.
+         *     are in, not archived, that have at least one post, newest first. An
+         *     archived class's channel stays readable by its members
+         *     (`getStudentClassThread`) and is not listed.
          */
         get: operations["listStudentThreads"];
         put?: never;
@@ -5329,8 +5343,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description The announcements of a class the student is in. Read-only: a
-         *     student's post here answers 403 (there is no post operation).
+         * @description The announcements of a class the student is in, archived or not.
+         *     Read-only: there is no post operation on this path, so a `POST`
+         *     answers 405, and the channel's post operation,
+         *     `postClassAnnouncement`, answers a student 403.
          */
         get: operations["getStudentClassThread"];
         put?: never;
@@ -5375,9 +5391,13 @@ export interface paths {
         };
         /**
          * Mint the download URL of a message's file
-         * @description For the participants of the thread whose message holds the file, and
-         *     its uploader before it is sent. Anyone else gets 404, an admin
-         *     included. The URL is a credential, so the answer is not stored.
+         * @description For the participants of the thread whose message holds the file (a
+         *     direct thread's staff member and student, and a class channel's
+         *     readers: staff whose class scope reaches the class, and its
+         *     current members), and its uploader before it is sent. Anyone
+         *     else gets 404, as for a missing id: an admin on a direct
+         *     message's file included, whom `scope.all` does not let into the
+         *     thread. The URL is a credential, so the answer is not stored.
          */
         get: operations["getStudentMessageAttachmentUrl"];
         put?: never;
@@ -10534,7 +10554,9 @@ export interface components {
          *
          *     A message item is one per reader per thread: it is written again,
          *     unread, with the new `count` while the thread stays unread, and marked
-         *     read when the reader's pointer passes it. `excerpt` is the newest
+         *     read when the reader's pointer passes it. Each write gives it a new
+         *     `id` and `createdAt`, so it lists first, and once it was read its
+         *     `count` starts again from the next message. `excerpt` is the newest
          *     message's first 80 characters; it lives only in the reader's own bell.
          *
          *     The three `ai.*` kinds are for the teacher's bell. `ai.credit_request`
@@ -20559,8 +20581,17 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
-            /** @description `MESSAGING_NOT_ALLOWED` — the teacher's account is disabled. The thread stays readable. */
+            /** @description `MESSAGING_NOT_ALLOWED` — the teacher's account is disabled or no longer staff, or the caller's is no longer a student. The thread stays readable. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the body is blank once trimmed (`details.body`), or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
