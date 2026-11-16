@@ -5296,8 +5296,10 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description The announcements of a class the student is in. Read-only: a
-         *     student's post here answers 403 (there is no post operation).
+         * @description The announcements of a class the student is in, archived or not.
+         *     Read-only: there is no post operation on this path, so a `POST`
+         *     answers 405, and the channel's post operation,
+         *     `postClassAnnouncement`, answers a student 403.
          */
         get: operations["getStudentClassThread"];
         put?: never;
@@ -20456,8 +20458,17 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
-            /** @description `MESSAGING_NOT_ALLOWED` — the teacher's account is disabled. The thread stays readable. */
+            /** @description `MESSAGING_NOT_ALLOWED` — the teacher's account is disabled or no longer staff, or the caller's is no longer a student. The thread stays readable. */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the body is blank once trimmed (`details.body`), or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
