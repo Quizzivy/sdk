@@ -1338,8 +1338,9 @@ export interface paths {
          * @description The share dialog's picker. Lists accounts that hold the teaching
          *     workspace, active or disabled, never the caller, never a student.
          *     `q` matches the full name, the display name and the email,
-         *     accent-insensitively (`duc` finds `Đức`). At most `limit` rows, best
-         *     match first.
+         *     accent-insensitively (`duc` finds `Đức`), best match first. Without
+         *     `q` (the picker just opened) it lists colleagues by name. At most
+         *     `limit` rows.
          *
          *     This is not a list of owned resources, so its rows are under
          *     `teachers`, not `items`: a colleague's name and email reach holders
@@ -14089,8 +14090,8 @@ export interface operations {
     };
     searchTeacherDirectory: {
         parameters: {
-            query: {
-                q: string;
+            query?: {
+                q?: string;
                 limit?: number;
             };
             header?: never;
