@@ -7327,6 +7327,14 @@ export interface components {
          *     rejects the very body it documents (see issue #41).
          */
         StudentRow: {
+            /**
+             * @description The caller may open a direct thread with this student and post in
+             *     it (`postStaffDirectMessage` would be accepted): an existing thread,
+             *     or a tie (a class of the caller's, now or before, or an account the
+             *     caller created), with the account enabled and still a student.
+             *     `scope.all` does not widen it. The row menu's "Send message" reads it.
+             */
+            canMessage: boolean;
             id: components["schemas"]["Uuid"];
             /** Format: email */
             email: string;
@@ -7926,6 +7934,8 @@ export interface components {
             notify: boolean;
         };
         ClassMember: {
+            /** @description As `StudentRow.canMessage`, for the caller and this member. Another teacher's class read through `scope.all` answers false for its students the caller never taught. */
+            canMessage: boolean;
             userId: components["schemas"]["Uuid"];
             /** @description The same figures G-07 shows, so G-06's roster carries "Bài đã nộp" and "Điểm TB". */
             stats: components["schemas"]["StudentStats"];
