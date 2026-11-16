@@ -5219,7 +5219,9 @@ export interface paths {
         /**
          * The student's Messages list
          * @description The student's direct threads, and the channels of the classes they
-         *     are in that have at least one post, newest first.
+         *     are in, not archived, that have at least one post, newest first. An
+         *     archived class's channel stays readable by its members
+         *     (`getStudentClassThread`) and is not listed.
          */
         get: operations["listStudentThreads"];
         put?: never;
