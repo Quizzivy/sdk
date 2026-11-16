@@ -5255,7 +5255,8 @@ export interface paths {
         };
         /**
          * @description The student's thread with a teacher: one who teaches a class the
-         *     student is in, or one they already have a thread with. `teacherId`
+         *     student is in that is not archived, or one they already have a
+         *     thread with. `teacherId`
          *     is a user id whose eligibility the operation checks (not an owned
          *     resource); any other id answers 404.
          */
@@ -5264,9 +5265,10 @@ export interface paths {
         /**
          * Write to a teacher
          * @description Text only. A student may write first to the teacher of a class they
-         *     are an active member of, and goes on writing in a thread that exists
-         *     after leaving the class; they cannot write first to a teacher of a
-         *     class they left.
+         *     are in that is not archived, and goes on writing in a thread that
+         *     exists after leaving the class or after the class is archived; they
+         *     cannot write first to a teacher of a class they left, or of a class
+         *     that is archived.
          *
          *     Limited to 10 a minute and 200 a day per student.
          */
@@ -10868,10 +10870,15 @@ export interface components {
         };
         /**
          * @description A row of the student's Messages. A direct row's `title` is the
-         *     teacher's name and `classNames` the student's classes they teach
-         *     ("Your teacher · {classes}"), empty with `former` when the student has
-         *     left them all ("Former teacher"). A class row is a channel with at
-         *     least one post ("Class announcements"), titled with the class's name.
+         *     teacher's name and `classNames` the student's classes they teach that
+         *     are not archived ("Your teacher · {classes}"). It is empty with
+         *     `former` when the teacher taught the student and teaches them in no
+         *     such class now, having left them all or seen them archived ("Former
+         *     teacher"). It is empty without `former` when the staff member never
+         *     taught the student (one who created the student's account and wrote
+         *     first): the subtitle is then "Your teacher" alone, with no " · " and
+         *     nothing after it. A class row is a channel with at least one post
+         *     ("Class announcements"), titled with the class's name.
          */
         StudentThread: {
             thread: components["schemas"]["StudentThreadRef"];
@@ -10884,6 +10891,11 @@ export interface components {
             preview: components["schemas"]["MessagePreview"] | null;
             unread: number;
         };
+        /**
+         * @description The thread's header. `classNames` and `former` read as they do on the
+         *     thread's `StudentThread` row: "Your teacher · {classes}", "Former
+         *     teacher", or "Your teacher" alone when both are empty and false.
+         */
         StudentDirectThreadTeacher: {
             id: components["schemas"]["Uuid"];
             name: string;
