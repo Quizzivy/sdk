@@ -10,6 +10,7 @@ export declare const OPERATIONS: {
   readonly "getPublicOrganization": { readonly method: "get"; readonly path: "/public/organization" };
   readonly "getOrganizationLogo": { readonly method: "get"; readonly path: "/public/organization/logo" };
   readonly "submitLead": { readonly method: "post"; readonly path: "/public/leads" };
+  readonly "receiveEmailEvents": { readonly method: "post"; readonly path: "/public/email-events" };
   readonly "login": { readonly method: "post"; readonly path: "/auth/login" };
   readonly "googleAuth": { readonly method: "post"; readonly path: "/auth/google" };
   readonly "checkSetPasswordLink": { readonly method: "post"; readonly path: "/auth/set-password/check" };
