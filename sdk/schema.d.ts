@@ -682,7 +682,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Backs the §8 tests list. Soft-deleted tests are excluded; keyset paginated (§13.8). */
+        /**
+         * @description Backs the §8 tests list. Soft-deleted tests are excluded; keyset paginated (§13.8).
+         *
+         *     Without `include` it lists the caller's own tests, for everyone,
+         *     admins included. `include=shared` adds the tests shared with the
+         *     caller, each with its `access` and `owner`: the assignment wizard's
+         *     test step.
+         */
         get: operations["listTests"];
         put?: never;
         /** @description Creates an empty draft. Content is added through the builder, and nothing is assignable until it is published. */
@@ -845,6 +852,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/tests/{id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a copy of a test the caller can read
+         * @description "Make a copy" (D4): copies the current draft into the caller's
+         *     ownership, with its sections, instructions and the test's own
+         *     groups. Every standalone question becomes a new bank question of the
+         *     caller's, with its options, gaps, match items and rubric, so the copy
+         *     is independent of the original. Versions, assignments and grants are
+         *     not copied. The copy is named as `duplicateTest` names its copies.
+         *     For the owner `duplicateTest` keeps its reference semantics; this
+         *     operation always copies. Audited as `share.copied`.
+         */
+        post: operations["copyTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/tests/{id}/question-copies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy questions into the bank of a test's owner
+         * @description "From question bank" for a caller who is not the test's owner: a
+         *     draft holds only questions its test's owner owns, so the builder adds
+         *     copies of the chosen questions, made in the owner's bank with
+         *     `createdBy` the caller. The caller needs edit access to the test and
+         *     read access to each question. The builder then puts the returned ids
+         *     into the outline with its next autosave.
+         */
+        post: operations["copyQuestionsForTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/tests/{id}/questions/{questionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+                questionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit a question in the context of a test
+         * @description How the builder saves a question when the caller is not the test's
+         *     owner (copy-on-write, D4). The question must be a standalone question
+         *     of the test's draft. When anything else uses it, another draft or a
+         *     question set, the edit makes a copy owned by the question's owner
+         *     with `createdBy` the caller, and only this test is pointed at the
+         *     copy (`forked`). Otherwise the question is edited in place. The
+         *     owner's own edits never fork. The test's `updatedAt` moves either
+         *     way. Audited as `question.updated`, and `question.forked` on a fork.
+         */
+        patch: operations["editTestQuestion"];
+        trace?: never;
+    };
     "/teacher/tests/{id}/versions": {
         parameters: {
             query?: never;
@@ -993,10 +1086,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The §8 question bank, with type and tag filters plus search. */
+        /**
+         * @description The §8 question bank, with type and tag filters plus search.
+         *
+         *     With `setId`, the list is that set's questions instead of the
+         *     caller's bank: any set the caller can read, for a caller holding
+         *     `content.questions.write` (the set operations' own permission; anyone
+         *     else gets 404), in set order unless a
+         *     sort is given, each row with the caller's `access` and its `owner`.
+         *     `bankTotal` is then the set's size.
+         */
         get: operations["listQuestions"];
         put?: never;
-        /** @description Adds a question to the bank. Options and blanks are written in the same transaction, with ordinals normalized dense. */
+        /**
+         * @description Adds a question to the bank. Options and blanks are written in the same transaction, with ordinals normalized dense.
+         *
+         *     With `forTestId` the question is made for that test's draft: it
+         *     belongs to the test's owner, with `createdBy` the caller, who needs
+         *     edit access to the test. A draft holds only questions its test's
+         *     owner owns, so this is how a co-editor adds a new question.
+         */
         post: operations["createQuestion"];
         delete?: never;
         options?: never;
@@ -1048,7 +1157,17 @@ export interface paths {
         delete: operations["deleteQuestion"];
         options?: never;
         head?: never;
-        /** @description Edits the bank copy only. Published versions hold their own snapshot and are unaffected (§7). */
+        /**
+         * @description Edits the bank copy only. Published versions hold their own snapshot and are unaffected (§7).
+         *
+         *     The question's owner and `scope.all` edit in place, as before.
+         *     Anyone else edits only in the context of a test or a set they can
+         *     edit: in a test through `editTestQuestion`, in a set with `setId`.
+         *     In a set, when anything other than that set uses the question, the
+         *     edit makes a copy owned by the question's owner, and only that set is
+         *     pointed at it (copy-on-write); the answer is the copy, whose `id`
+         *     differs from the path's.
+         */
         patch: operations["updateQuestion"];
         trace?: never;
     };
@@ -1068,9 +1187,282 @@ export interface paths {
          *     tags into a new bank row that no test references yet. A source whose
          *     media asset has been deleted, or that no longer validates, answers
          *     `VALIDATION_FAILED` as a create would; nothing is copied.
+         *
+         *     With `forTestId` the copy is made in that test's owner's bank, as
+         *     `createQuestion` does with it.
          */
         post: operations["duplicateQuestion"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/question-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's own question sets
+         * @description The sets the caller owns, most recently changed first, for the bank's
+         *     Sets group and the bulk bar's "Add to set" (DG-90, interim). Sets
+         *     other teachers shared with the caller are in `listSharedWithMe`. The
+         *     list is not paged: a teacher keeps tens of sets, not thousands.
+         */
+        get: operations["listQuestionSets"];
+        put?: never;
+        /**
+         * Make a question set from the bank's selection
+         * @description Every id must be a standalone question of the caller's bank that is
+         *     not deleted (not a member of a passage or cloze group). The set keeps
+         *     them in the given order. Audited as `question_set.created`.
+         */
+        post: operations["createQuestionSet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/question-sets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        /** @description A set its owner, a grantee or `scope.all` can read. Its questions are `listQuestions?setId=`. */
+        get: operations["getQuestionSet"];
+        put?: never;
+        post?: never;
+        /**
+         * @description Owner only. Deletes the set and every grant to it in one
+         *     transaction. Its questions stay in the bank, and tests that use them
+         *     are not affected. Audited as `question_set.deleted`.
+         */
+        delete: operations["deleteQuestionSet"];
+        options?: never;
+        head?: never;
+        /** @description Renames the set or changes its description, for its owner or an edit grantee. Audited as `question_set.updated`. */
+        patch: operations["updateQuestionSet"];
+        trace?: never;
+    };
+    "/teacher/question-sets/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add bank questions to a set
+         * @description Owner only (O-R7.4: an edit grantee changes and removes a set's
+         *     questions, but does not add them). Appends in the given order and
+         *     ignores a question the set already holds. A set holds at most 500
+         *     questions. Audited as `question_set.updated`.
+         */
+        post: operations["addQuestionSetItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/question-sets/{id}/items/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take questions out of a set
+         * @description For the owner or an edit grantee. The questions stay in the bank. An
+         *     id the set does not hold is ignored. Audited as `question_set.updated`.
+         */
+        post: operations["removeQuestionSetItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/question-sets/{id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a copy of a set, or of some of its questions
+         * @description For anyone who can read the set. Without `questionIds` it copies the
+         *     whole set into a new set the caller owns, with new questions of the
+         *     caller's own. With `questionIds`, which must be members of the set,
+         *     it copies just those questions into the caller's bank and makes no
+         *     set: "Add to test" from a shared set. A copy is independent: a later
+         *     edit to either side leaves the other unchanged. Audited as
+         *     `share.copied`.
+         */
+        post: operations["copyQuestionSet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/directory/teachers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find colleagues to share with
+         * @description The share dialog's picker. Lists accounts that hold the teaching
+         *     workspace, active or disabled, never the caller, never a student.
+         *     `q` matches the full name, the display name and the email,
+         *     accent-insensitively (`duc` finds `Đức`), best match first. Without
+         *     `q` (the picker just opened) it lists colleagues by name. At most
+         *     `limit` rows.
+         *
+         *     This is not a list of owned resources, so its rows are under
+         *     `teachers`, not `items`: a colleague's name and email reach holders
+         *     of `content.share` by design (the deck draws them), and never a
+         *     student, whom `x-permission` excludes.
+         *
+         *     Limited to 60 a minute per signed-in user.
+         */
+        get: operations["searchTeacherDirectory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who has access to a test or a set
+         * @description The share dialog's "People with access". For the owner and
+         *     `scope.all`. `resourceId` names a test or a question set, as `kind`
+         *     says; the isolation suite runs it once per kind.
+         */
+        get: operations["listShares"];
+        put?: never;
+        /**
+         * Share a test or a set with colleagues
+         * @description For the owner and `scope.all`; a recipient never shares further (D4).
+         *     Grants each recipient that qualifies and skips the others with a
+         *     reason. With `notify`, each new recipient gets `content.shared` in
+         *     app and by email. Audited as `share.granted`, one row per grant.
+         *
+         *     `granteeIds` names no owned resource: any teacher the directory
+         *     returns is a valid recipient, and `skipped` covers the rest.
+         *
+         *     Limited to 30 an hour per signed-in user.
+         */
+        post: operations["createShares"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/shares/{shareId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop sharing with one recipient
+         * @description For the owner and `scope.all`. Deletes the grant and nothing else:
+         *     assignments the recipient already made keep their version, and their
+         *     students' results stay in the recipient's classes. Audited as
+         *     `share.revoked`.
+         */
+        delete: operations["deleteShare"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a recipient between Can use and Can edit
+         * @description For the owner and `scope.all`. Audited as `share.changed`.
+         */
+        patch: operations["updateShare"];
+        trace?: never;
+    };
+    "/teacher/shared-with-me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What other teachers shared with the caller
+         * @description Shared with me. Soft-deleted content is left out. `q` matches the
+         *     name and the owner's name, accent-insensitively. Newest grant first.
+         */
+        get: operations["listSharedWithMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/shared-with-me/{shareId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove from my list
+         * @description For the grant's recipient only, who needs no `content.share` to leave.
+         *     Deletes the grant; assignments the caller already made from it keep
+         *     working. Audited as `share.removed`.
+         */
+        delete: operations["removeSharedWithMe"];
         options?: never;
         head?: never;
         patch?: never;
@@ -5364,7 +5756,7 @@ export interface components {
          *     be sent again.
          * @enum {string}
          */
-        ErrorCode: "INVALID_CREDENTIALS" | "ACCOUNT_NOT_PROVISIONED" | "ACCOUNT_DISABLED" | "EMAIL_NOT_VERIFIED" | "PASSWORD_REQUIRED" | "PASSWORD_UNCHANGED" | "IDENTITY_ALREADY_LINKED" | "LAST_LOGIN_METHOD" | "SET_PASSWORD_LINK_INVALID" | "REFRESH_TOKEN_INVALID" | "REFRESH_TOKEN_REUSED" | "SESSION_IS_CURRENT" | "JOIN_CODE_INVALID" | "JOIN_CODE_EXPIRED" | "JOIN_CODE_EXHAUSTED" | "JOIN_CODE_REVOKED" | "CLASS_ARCHIVED" | "EMAIL_TAKEN" | "STUDENT_SHARED" | "ROLE_NAME_TAKEN" | "ROLE_LIMIT_REACHED" | "ROLE_NOT_ASSIGNABLE" | "SEAT_LIMIT" | "TEACHER_LIMIT" | "STORAGE_LIMIT" | "ROLE_LOCKED" | "STUDENT_NEEDS_TAKE_TESTS" | "KEY_NOT_GRANTABLE" | "CANNOT_ACT_ON_SELF" | "TARGET_ROLE_NOT_ALLOWED" | "LAST_ADMIN" | "USER_OWNS_CONTENT" | "USER_NOT_DISABLED" | "INVALID_RECIPIENT" | "RESOURCE_REFERENCED" | "RESOURCE_NOT_ARCHIVED" | "VERSION_IS_CURRENT" | "TEST_NOT_PUBLISHED" | "TEST_ARCHIVED" | "GROUP_OUTLINE_REQUIRED" | "GROUP_CONFLICT" | "PUBLISH_VALIDATION_FAILED" | "STALE_WRITE" | "PLAY_ID_CONFLICT" | "QUESTION_REFERENCED" | "MEDIA_REFERENCED" | "MEDIA_TYPE_UNSUPPORTED" | "MEDIA_TOO_LARGE" | "MEDIA_TOO_LONG" | "MEDIA_UNREADABLE" | "MEDIA_KIND_MISMATCH" | "MEDIA_QUOTA_EXCEEDED" | "IMAGE_DIMENSIONS" | "IMPORT_CONFLICT" | "IMPORT_QUOTA_EXCEEDED" | "IMPORT_BUSY" | "IMPORT_SOURCE_INVALID" | "IMPORT_SOURCE_TOO_LARGE" | "IMPORT_SOURCE_UNSUPPORTED" | "IMPORT_NOT_READY" | "IMPORT_NOT_PROCESSED" | "IMPORT_PROCESSING_UNAVAILABLE" | "IMPORT_FILES_REMOVED" | "ASSIGNMENT_NOT_OPEN" | "ASSIGNMENT_NOT_CLOSED" | "ASSIGNMENT_CLOSED" | "ATTEMPT_LIMIT_REACHED" | "ATTEMPT_CLOSED" | "ATTEMPT_IN_PROGRESS" | "ATTEMPT_VOIDED" | "SESSION_SUPERSEDED" | "DEADLINE_PASSED" | "DEADLINE_NOT_REACHED" | "GRADING_INCOMPLETE" | "ANSWER_REMOVED" | "GRADE_NEEDS_BAND" | "GRADE_CRITERIA_INCOMPLETE" | "GRADE_NEEDS_POINTS" | "GRADE_BAND_NOT_ALLOWED" | "VERSION_LOCKED" | "ASSIGNMENT_LOCKED" | "AI_OFF" | "AI_PAUSED" | "AI_READ_OFF" | "AI_CREDITS_EXHAUSTED" | "AI_UNAVAILABLE" | "AI_REQUESTS_OFF" | "AI_REQUEST_PENDING" | "AI_REQUEST_DECIDED" | "AI_REQUEST_EXPIRED" | "AI_ALLOWANCE_BELOW_USE" | "EXPORT_TOO_LARGE" | "EXPORT_IN_PROGRESS" | "EXPORT_UNAVAILABLE" | "EXPORT_OFF" | "USER_IMPORT_FILE_TOO_LARGE" | "USER_IMPORT_FILE_UNREADABLE" | "USER_IMPORT_FILE_EMPTY" | "USER_IMPORT_TOO_MANY_ROWS" | "USER_IMPORT_COLUMNS" | "USER_IMPORT_NOTHING_TO_CREATE" | "SHEET_UNAVAILABLE" | "CSV_NOT_UTF8" | "XLSX_MACROS" | "XLSX_ENCRYPTED" | "SIGN_IN_POLICY_LOCKOUT" | "PASSWORD_SIGN_IN_DISABLED" | "GOOGLE_SIGN_IN_DISABLED" | "GOOGLE_DOMAIN_NOT_ALLOWED" | "MAINTENANCE" | "MAINTENANCE_SCHEDULED" | "VALIDATION_FAILED" | "REQUEST_INCOMPLETE" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "UNAUTHORIZED" | "FORBIDDEN" | "PASSWORD_CHANGE_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
+        ErrorCode: "INVALID_CREDENTIALS" | "ACCOUNT_NOT_PROVISIONED" | "ACCOUNT_DISABLED" | "EMAIL_NOT_VERIFIED" | "PASSWORD_REQUIRED" | "PASSWORD_UNCHANGED" | "IDENTITY_ALREADY_LINKED" | "LAST_LOGIN_METHOD" | "SET_PASSWORD_LINK_INVALID" | "REFRESH_TOKEN_INVALID" | "REFRESH_TOKEN_REUSED" | "SESSION_IS_CURRENT" | "JOIN_CODE_INVALID" | "JOIN_CODE_EXPIRED" | "JOIN_CODE_EXHAUSTED" | "JOIN_CODE_REVOKED" | "CLASS_ARCHIVED" | "EMAIL_TAKEN" | "STUDENT_SHARED" | "ROLE_NAME_TAKEN" | "ROLE_LIMIT_REACHED" | "ROLE_NOT_ASSIGNABLE" | "SEAT_LIMIT" | "TEACHER_LIMIT" | "STORAGE_LIMIT" | "ROLE_LOCKED" | "STUDENT_NEEDS_TAKE_TESTS" | "KEY_NOT_GRANTABLE" | "CANNOT_ACT_ON_SELF" | "TARGET_ROLE_NOT_ALLOWED" | "LAST_ADMIN" | "USER_OWNS_CONTENT" | "USER_NOT_DISABLED" | "INVALID_RECIPIENT" | "RESOURCE_REFERENCED" | "RESOURCE_NOT_ARCHIVED" | "VERSION_IS_CURRENT" | "TEST_NOT_PUBLISHED" | "TEST_ARCHIVED" | "GROUP_OUTLINE_REQUIRED" | "GROUP_CONFLICT" | "PUBLISH_VALIDATION_FAILED" | "STALE_WRITE" | "PLAY_ID_CONFLICT" | "QUESTION_REFERENCED" | "MEDIA_REFERENCED" | "MEDIA_TYPE_UNSUPPORTED" | "MEDIA_TOO_LARGE" | "MEDIA_TOO_LONG" | "MEDIA_UNREADABLE" | "MEDIA_KIND_MISMATCH" | "MEDIA_QUOTA_EXCEEDED" | "IMAGE_DIMENSIONS" | "SHARE_OWNER_ONLY" | "SHARE_READ_ONLY" | "EDIT_CONTEXT_REQUIRED" | "MEDIA_IN_USE_ELSEWHERE" | "IMPORT_CONFLICT" | "IMPORT_QUOTA_EXCEEDED" | "IMPORT_BUSY" | "IMPORT_SOURCE_INVALID" | "IMPORT_SOURCE_TOO_LARGE" | "IMPORT_SOURCE_UNSUPPORTED" | "IMPORT_NOT_READY" | "IMPORT_NOT_PROCESSED" | "IMPORT_PROCESSING_UNAVAILABLE" | "IMPORT_FILES_REMOVED" | "ASSIGNMENT_NOT_OPEN" | "ASSIGNMENT_NOT_CLOSED" | "ASSIGNMENT_CLOSED" | "ATTEMPT_LIMIT_REACHED" | "ATTEMPT_CLOSED" | "ATTEMPT_IN_PROGRESS" | "ATTEMPT_VOIDED" | "SESSION_SUPERSEDED" | "DEADLINE_PASSED" | "DEADLINE_NOT_REACHED" | "GRADING_INCOMPLETE" | "ANSWER_REMOVED" | "GRADE_NEEDS_BAND" | "GRADE_CRITERIA_INCOMPLETE" | "GRADE_NEEDS_POINTS" | "GRADE_BAND_NOT_ALLOWED" | "VERSION_LOCKED" | "ASSIGNMENT_LOCKED" | "AI_OFF" | "AI_PAUSED" | "AI_READ_OFF" | "AI_CREDITS_EXHAUSTED" | "AI_UNAVAILABLE" | "AI_REQUESTS_OFF" | "AI_REQUEST_PENDING" | "AI_REQUEST_DECIDED" | "AI_REQUEST_EXPIRED" | "AI_ALLOWANCE_BELOW_USE" | "EXPORT_TOO_LARGE" | "EXPORT_IN_PROGRESS" | "EXPORT_UNAVAILABLE" | "EXPORT_OFF" | "USER_IMPORT_FILE_TOO_LARGE" | "USER_IMPORT_FILE_UNREADABLE" | "USER_IMPORT_FILE_EMPTY" | "USER_IMPORT_TOO_MANY_ROWS" | "USER_IMPORT_COLUMNS" | "USER_IMPORT_NOTHING_TO_CREATE" | "SHEET_UNAVAILABLE" | "CSV_NOT_UTF8" | "XLSX_MACROS" | "XLSX_ENCRYPTED" | "SIGN_IN_POLICY_LOCKOUT" | "PASSWORD_SIGN_IN_DISABLED" | "GOOGLE_SIGN_IN_DISABLED" | "GOOGLE_DOMAIN_NOT_ALLOWED" | "MAINTENANCE" | "MAINTENANCE_SCHEDULED" | "VALIDATION_FAILED" | "REQUEST_INCOMPLETE" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "UNAUTHORIZED" | "FORBIDDEN" | "PASSWORD_CHANGE_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
         /**
          * @description Extracted so a response carrying the envelope AND something else can
          *     reference it without composing over a closed schema (issue #41).
@@ -6773,14 +7165,17 @@ export interface components {
         UserContentTransferResult: {
             /**
              * @description What changed owner, counted as `ownedContent` counts it: every
-             *     class, and every test, question, question group and media asset
-             *     not deleted, and every assignment. Deleted rows move too, uncounted.
+             *     class, and every test, question, question group, question set and
+             *     media asset not deleted, and every assignment. Deleted rows move
+             *     too, uncounted. Grants to the moved tests and sets move with them;
+             *     a grant to the recipient, who now owns the content, is deleted.
              */
             moved: {
                 classes: number;
                 tests: number;
                 questions: number;
                 questionGroups: number;
+                questionSets: number;
                 media: number;
                 assignments: number;
             };
@@ -7974,6 +8369,16 @@ export interface components {
             /** @description Current test outlines using the question, sorted by title. Included on individual question responses; loaded on demand for the bank's nested usage table. Published snapshots are excluded. */
             usedIn?: components["schemas"]["ReferencingTest"][];
             createdAt: components["schemas"]["Timestamp"];
+            /**
+             * @description What the caller may do with the question: `owner` for its owner
+             *     and `scope.all`, `edit` when a test or a set the caller can edit
+             *     holds it, `use` when only one the caller can read does. Present on
+             *     the question bank's operations; absent where a grading page
+             *     carries a question.
+             */
+            access?: components["schemas"]["ContentAccess"];
+            /** @description The question's owner. Present wherever `access` is. */
+            owner?: components["schemas"]["PersonRef"];
             updatedAt: components["schemas"]["Timestamp"];
         };
         /** @description No `isCorrect`. Deliberately not a subset-by-omission of AdminQuestionOption. */
@@ -8454,6 +8859,12 @@ export interface components {
             unpublishedChanges: number | null;
             /** @description The **draft** outline. Published content lives in versions. */
             sections: components["schemas"]["TestSection"][];
+            /** @description What the caller may do with the test. A recipient sees the draft and every version, as the owner does. */
+            access: components["schemas"]["ContentAccess"];
+            /** @description The test's owner. A client tells its own tests from `owner.id`. */
+            owner: components["schemas"]["PersonRef"];
+            /** @description Teachers holding a grant to the test, for the card's "Shared · {n}"; 0 for a caller who is not its owner and holds no `scope.all`. */
+            sharedWith: number;
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
             /** Format: date-time */
@@ -9146,6 +9557,8 @@ export interface components {
             answersToGrade: number | null;
             /** @description The caller's own unread notifications. */
             unreadNotifications: number;
+            /** @description Live grants to the caller, the muted count beside "Shared with me". */
+            sharedWithMe: number;
         };
         ClosingAssignment: {
             id: components["schemas"]["Uuid"];
@@ -9721,6 +10134,8 @@ export interface components {
          *     | `ai.credit_request.decided` | a teacher | `credits`, `decision` |
          *     | `content.transferred` | a teacher | `teacherName`, `count` |
          *     | `class.teacher_changed` | a teacher | `className`, and `teacherName` for the class's previous teacher |
+         *     | `content.shared` | a teacher | `sharerName`, `contentKind`, `name`, `access`, and `message` when the sharer wrote one |
+         *     | `test.published_by_collaborator` | a teacher | `editorName`, `title`, `version` |
          *
          *     The three `ai.*` kinds are for the teacher's bell. `ai.credit_request`
          *     is written for every holder of `ai.credits.manage`, who reads it in the
@@ -9731,7 +10146,7 @@ export interface components {
          *     the kind stays so that the notifications it wrote still read.
          * @enum {string}
          */
-        NotificationKind: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "class.joined" | "join_codes.rotated" | "assignment.opened" | "assignment.due_soon" | "assignment.extended" | "result.ready" | "ai.allowance_warning" | "ai.credit_request" | "ai.credit_request.decided" | "content.transferred" | "class.teacher_changed";
+        NotificationKind: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "class.joined" | "join_codes.rotated" | "assignment.opened" | "assignment.due_soon" | "assignment.extended" | "result.ready" | "ai.allowance_warning" | "ai.credit_request" | "ai.credit_request.decided" | "content.transferred" | "class.teacher_changed" | "content.shared" | "test.published_by_collaborator";
         /**
          * @description The console that reads a notification, and so which of the caller's
          *     notifications a bell counts, lists and clears. Which kinds each one
@@ -9751,7 +10166,10 @@ export interface components {
          *     `assignment.due_soon` and `result.ready` the student's. A switch
          *     governs the kind of the same name, and `assignment.due_soon` also
          *     governs `assignment.opened` and `assignment.extended`. `class.joined`
-         *     `join_codes.rotated` and `class.teacher_changed` have no switch.
+         *     `join_codes.rotated`, `class.teacher_changed`, `content.shared` and
+         *     `test.published_by_collaborator` have no switch: the sharer's "Send a
+         *     notification" decides the first, and the owner always hears of the
+         *     second.
          * @enum {string}
          */
         NotificationEvent: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "assignment.due_soon" | "result.ready";
@@ -9790,23 +10208,38 @@ export interface components {
              * @enum {string}
              */
             decision?: "approved" | "declined";
+            /** @description The teacher who shared (`content.shared`). */
+            sharerName?: string;
+            contentKind?: components["schemas"]["ShareKind"];
+            /** @description The shared test's title or set's name (`content.shared`). */
+            name?: string;
+            access?: components["schemas"]["ShareAccess"];
+            /** @description The sharer's own words, as they wrote them (`content.shared`). */
+            message?: string;
+            /** @description The co-editor who published (`test.published_by_collaborator`). */
+            editorName?: string;
+            /** @description The version a co-editor published. */
+            version?: number;
         };
         /**
          * @description Where a click on the notification goes: a page the client resolves from
          *     `route`, never a URL. `assignmentId` is present for `assignment` and
-         *     `studentAssignment`, and `attemptId` for `attempt` and `result`; either
-         *     may accompany any other route.
+         *     `studentAssignment`, `attemptId` for `attempt` and `result`, and
+         *     `testId` for `test`; any of them may accompany any other route.
          */
         NotificationTarget: {
             /**
-             * @description `assignment`, `attempt`, `grading` and `classes` are pages of the
-             *     teaching workspace; `result` and `studentAssignment` are the
-             *     student's result and the student's page of an assignment.
+             * @description `assignment`, `attempt`, `grading`, `classes`, `sharedWithMe`
+             *     and `test` are pages of the teaching workspace; `result` and
+             *     `studentAssignment` are the student's result and the student's
+             *     page of an assignment.
              * @enum {string}
              */
-            route: "assignment" | "attempt" | "grading" | "classes" | "result" | "studentAssignment";
+            route: "assignment" | "attempt" | "grading" | "classes" | "result" | "studentAssignment" | "sharedWithMe" | "test";
             assignmentId?: components["schemas"]["Uuid"];
             attemptId?: components["schemas"]["Uuid"];
+            /** @description Present for `test`. */
+            testId?: components["schemas"]["Uuid"];
         };
         Notification: {
             id: components["schemas"]["Uuid"];
@@ -9835,6 +10268,178 @@ export interface components {
         /** @description What the caller's shell shows before any page is open. */
         MySummary: {
             unreadNotifications: number;
+        };
+        /**
+         * @description What the caller may do with a test or a question set (D4). `owner` is
+         *     the content's owner, and anyone holding `scope.all`; `edit` and `use`
+         *     are a share's two levels, Can edit and Can use. A client tells the
+         *     owner from `owner.id`, never from this, because `scope.all` reads as
+         *     `owner`.
+         *
+         *     | Action | `owner` | `edit` | `use` |
+         *     |---|---|---|---|
+         *     | Read: detail, builder, versions, preview, diff | ✓ | ✓ | ✓ |
+         *     | Assign a published version to one's own classes | ✓ | ✓ | ✓ |
+         *     | Make a copy | ✓ | ✓ | ✓ |
+         *     | Autosave, change questions and groups, restore as draft, make default | ✓ | ✓ | |
+         *     | Publish (also needs `content.tests.publish`) | ✓ | ✓ | |
+         *     | Delete, archive, share, duplicate, delete a version | ✓ | | |
+         *
+         *     A caller who cannot read the content gets `404`. A reader without the
+         *     right gets `403` with `SHARE_READ_ONLY` (a use grant writing) or
+         *     `SHARE_OWNER_ONLY` (an owner's action).
+         * @enum {string}
+         */
+        ContentAccess: "owner" | "edit" | "use";
+        /** @description A person named by an id and a display name, as a line of a page shows them. */
+        PersonRef: {
+            id: components["schemas"]["Uuid"];
+            /** @description The display name. */
+            name: string;
+        };
+        /**
+         * @description What a share gives. Later releases add values; a client treats an unknown one as a row it cannot open.
+         * @enum {string}
+         */
+        ShareKind: "test" | "question_set";
+        /**
+         * @description Can use (read, assign, copy) or Can edit (also change and publish). See `ContentAccess`.
+         * @enum {string}
+         */
+        ShareAccess: "use" | "edit";
+        /** @description A colleague as the share dialog lists them. Never a student. */
+        ShareTeacher: {
+            id: components["schemas"]["Uuid"];
+            fullName: string;
+            displayName: string;
+            email: string;
+            /** @description The profile photo, a presigned GET valid 24 hours; `null` when there is none or no store is configured. */
+            avatarUrl: string | null;
+            /** @description The account is disabled. It cannot be picked as a new recipient. */
+            disabled: boolean;
+        };
+        ShareGrant: {
+            id: components["schemas"]["Uuid"];
+            grantee: components["schemas"]["ShareTeacher"];
+            access: components["schemas"]["ShareAccess"];
+            grantedAt: components["schemas"]["Timestamp"];
+            grantedBy: components["schemas"]["PersonRef"];
+        };
+        ShareOwner: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            email: string;
+            avatarUrl: string | null;
+        };
+        /** @description The share dialog's "People with access", the owner first. */
+        ShareList: {
+            owner: components["schemas"]["ShareOwner"];
+            /** @description Oldest grant first. */
+            grants: components["schemas"]["ShareGrant"][];
+        };
+        ShareCreate: {
+            kind: components["schemas"]["ShareKind"];
+            /** @description The test or the question set, as `kind` says. */
+            resourceId: components["schemas"]["Uuid"];
+            granteeIds: components["schemas"]["Uuid"][];
+            access: components["schemas"]["ShareAccess"];
+            /**
+             * @description "Send a notification". Each new recipient then gets
+             *     `content.shared` in app and by email. There is no recipient
+             *     switch: the sharer decides.
+             */
+            notify: boolean;
+            /** @description "Add a message (optional)": trimmed, empty is none. Carried by the notification and the email, marked as the sharer's words. */
+            message?: string | null;
+        };
+        /**
+         * @description Why a recipient got no grant. `SELF` is the content's owner,
+         *     `ALREADY_SHARED` already holds a grant (change it with `updateShare`),
+         *     `NOT_A_TEACHER` lacks the teaching workspace or is no account at all,
+         *     and `DISABLED` is a disabled account.
+         * @enum {string}
+         */
+        ShareSkipCode: "SELF" | "ALREADY_SHARED" | "NOT_A_TEACHER" | "DISABLED";
+        ShareCreateResult: {
+            /** @description The grants made, in the order of `granteeIds`. */
+            grants: components["schemas"]["ShareGrant"][];
+            skipped: {
+                userId: components["schemas"]["Uuid"];
+                code: components["schemas"]["ShareSkipCode"];
+            }[];
+        };
+        SharedWithMeOwner: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            /** @description The owner's account is disabled ("Account disabled"). The grant still works. */
+            disabled: boolean;
+        };
+        SharedWithMeItem: {
+            shareId: components["schemas"]["Uuid"];
+            kind: components["schemas"]["ShareKind"];
+            resourceId: components["schemas"]["Uuid"];
+            /** @description The test's title or the set's name, read now. */
+            name: string;
+            owner: components["schemas"]["SharedWithMeOwner"];
+            access: components["schemas"]["ShareAccess"];
+            sharedAt: components["schemas"]["Timestamp"];
+            /** @description A question set's live questions; `null` for a test. */
+            questionCount: number | null;
+        };
+        /** @description Live grants to the caller per tab, before `kind` and with `q`. */
+        SharedWithMeCounts: {
+            all: number;
+            test: number;
+            questionSet: number;
+        };
+        QuestionSetSummary: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            description: string | null;
+            /** @description Live questions in the set. */
+            questionCount: number;
+            /** @description Teachers holding a grant to the set. */
+            sharedWith: number;
+            updatedAt: components["schemas"]["Timestamp"];
+        };
+        /**
+         * @description A named, ordered selection of its owner's standalone bank questions
+         *     (DG-90, interim). It holds references, not copies: a question edited
+         *     in the bank is edited in the set. Passage and cloze groups are not
+         *     set members. Its questions are read with `listQuestions?setId=`.
+         */
+        QuestionSet: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            description: string | null;
+            owner: components["schemas"]["PersonRef"];
+            access: components["schemas"]["ContentAccess"];
+            questionCount: number;
+            /** @description Teachers holding a grant to the set; 0 for a caller who is not its owner and holds no `scope.all`. */
+            sharedWith: number;
+            createdAt: components["schemas"]["Timestamp"];
+            updatedAt: components["schemas"]["Timestamp"];
+        };
+        QuestionSetIds: {
+            questionIds: components["schemas"]["Uuid"][];
+        };
+        /** @description The new bank questions, in the order of the questions they copy. */
+        QuestionCopyResult: {
+            questionIds: components["schemas"]["Uuid"][];
+        };
+        /** @description The answer of `editTestQuestion`. */
+        TestQuestionEdit: {
+            /** @description The question as saved, the fork when `forked`. */
+            question: components["schemas"]["AdminQuestion"];
+            /**
+             * @description True when the edit made a new question (copy-on-write): the
+             *     original is used elsewhere, so this test now uses the copy, owned
+             *     by the original's owner, and nothing else changed.
+             */
+            forked: boolean;
+            /** @description The test's `updatedAt` after the edit, which the edit moves. The builder sends it as its next `expectedUpdatedAt`. */
+            testUpdatedAt: components["schemas"]["Timestamp"];
         };
         /**
          * @description Create/update body for a bank question. Cross-field rules that a single
@@ -9906,6 +10511,14 @@ export interface components {
             /** @description `essay` only. Order in the array is the stored ordinal; an empty list means the teacher sets the band directly. */
             rubric?: components["schemas"]["RubricCriterionInput"][];
             tags?: string[];
+            /**
+             * @description `updateQuestion` and `editTestQuestion`: the question's
+             *     `updatedAt` the editor last read. When the question has changed
+             *     since, the write answers `409 STALE_WRITE` naming who changed it,
+             *     and nothing is saved. Optional until R8, which makes it required;
+             *     every other operation that takes a `QuestionInput` ignores it.
+             */
+            expectedUpdatedAt?: components["schemas"]["Timestamp"];
         };
         /**
          * @description One matching item. Its key is named by position in the same body's
@@ -11557,6 +12170,7 @@ export interface operations {
     listTests: {
         parameters: {
             query?: {
+                include?: "shared";
                 status?: components["schemas"]["TestStatus"];
                 tag?: string[];
                 /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
@@ -11677,6 +12291,15 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The resource is still referenced or has not reached its required inactive state. */
             409: {
@@ -11737,8 +12360,17 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
-            /** @description `STALE_WRITE` — edited elsewhere since `expectedUpdatedAt`; `GROUP_OUTLINE_REQUIRED` — a legacy question-only outline cannot replace a draft containing shared groups. Metadata-only updates remain supported. `TEST_ARCHIVED` — restore the test before a mixed-outline edit. */
+            /** @description `STALE_WRITE` — edited elsewhere since `expectedUpdatedAt`, with `details.updatedBy` (`PersonRef` or `null`, who saved last) and `details.updatedAt`; `GROUP_OUTLINE_REQUIRED` — a legacy question-only outline cannot replace a draft containing shared groups. Metadata-only updates remain supported. `TEST_ARCHIVED` — restore the test before a mixed-outline edit. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11871,6 +12503,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. `FORBIDDEN` — the caller lacks `content.tests.publish`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description `PUBLISH_VALIDATION_FAILED`. **Every** problem is returned at once,
@@ -11914,7 +12555,139 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test; a recipient uses `copyTest`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
+        };
+    };
+    copyTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Copied, as a draft of the caller's. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Test"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    copyQuestionsForTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    questionIds: components["schemas"]["Uuid"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Copied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionCopyResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `NOT_FOUND` — no such test for the caller, or a question the caller cannot read (`details.questionIds`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    editTestQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+                questionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestQuestionEdit"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /**
+             * @description `STALE_WRITE` — the question changed since `expectedUpdatedAt`.
+             *     `details.updatedBy` (`PersonRef` or `null`) and
+             *     `details.updatedAt` name the last change. `TEST_ARCHIVED` —
+             *     restore the test first.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     listTestVersions: {
@@ -11963,6 +12736,15 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The version is referenced or current. Archiving does not prevent deletion of an unused, non-current version. */
             409: {
@@ -12047,6 +12829,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The test is archived (`TEST_ARCHIVED`) or the expected update time is stale (`STALE_WRITE`). */
             409: {
@@ -12087,6 +12878,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description The test is archived (`TEST_ARCHIVED`), the expected update time is
@@ -12148,6 +12948,7 @@ export interface operations {
     listQuestions: {
         parameters: {
             query?: {
+                setId?: components["schemas"]["Uuid"];
                 type?: components["schemas"]["QuestionType"][];
                 tag?: string[];
                 level?: components["schemas"]["QuestionLevel"][];
@@ -12217,11 +13018,22 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `NOT_FOUND` — `setId` names no set the caller can read. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     createQuestion: {
         parameters: {
-            query?: never;
+            query?: {
+                forTestId?: components["schemas"]["Uuid"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -12242,6 +13054,24 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `NOT_FOUND` — `forTestId` names no test the caller can read. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     tagQuestions: {
@@ -12315,6 +13145,15 @@ export interface operations {
         responses: {
             204: components["responses"]["NoContent"];
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller can read the question but does not own it. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description `QUESTION_REFERENCED` — still referenced by a draft test outline.
@@ -12333,7 +13172,9 @@ export interface operations {
     };
     updateQuestion: {
         parameters: {
-            query?: never;
+            query?: {
+                setId?: components["schemas"]["Uuid"];
+            };
             header?: never;
             path: {
                 id: components["parameters"]["IdPath"];
@@ -12356,12 +13197,45 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller can read the question but not edit it. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
+            /**
+             * @description `STALE_WRITE` — the question changed since `expectedUpdatedAt`.
+             *     `details.updatedBy` (`PersonRef` or `null`) and
+             *     `details.updatedAt` name the last change.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `EDIT_CONTEXT_REQUIRED` — the caller is not the question's owner and gave no set; a test's question is edited with `editTestQuestion`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     duplicateQuestion: {
         parameters: {
-            query?: never;
+            query?: {
+                forTestId?: components["schemas"]["Uuid"];
+            };
             header?: never;
             path: {
                 id: components["parameters"]["IdPath"];
@@ -12379,6 +13253,527 @@ export interface operations {
                     "application/json": components["schemas"]["AdminQuestion"];
                 };
             };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — without `forTestId`, a question the caller does not own; `SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listQuestionSets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["QuestionSetSummary"][];
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Trimmed; 1 to 120 characters after trimming. */
+                    name: string;
+                    /** @description Trimmed; empty is none. */
+                    description?: string | null;
+                    questionIds: components["schemas"]["Uuid"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            /** @description `NOT_FOUND` — an id is not a live standalone question of the caller's bank. `details.questionIds` lists those ids, and nothing is created. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the set. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    /** @description Trimmed; empty after trimming, or `null`, removes the description. */
+                    description?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addQuestionSetItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionSetIds"];
+            };
+        };
+        responses: {
+            /** @description Added. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the set. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `NOT_FOUND` — no such set for the caller, or an id is not a live standalone question of the set owner's bank (`details.questionIds`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the set would hold more than 500 questions. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeQuestionSetItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionSetIds"];
+            };
+        };
+        responses: {
+            /** @description Removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    copyQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    questionIds?: components["schemas"]["Uuid"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Copied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description The new set; `null` when `questionIds` was given.
+                         */
+                        setId: string | null;
+                        /** @description The new questions, in set order. */
+                        questionIds: components["schemas"]["Uuid"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `NOT_FOUND` — no such set for the caller, or an id is not a member of it (`details.questionIds`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    searchTeacherDirectory: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        teachers: components["schemas"]["ShareTeacher"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listShares: {
+        parameters: {
+            query: {
+                kind: components["schemas"]["ShareKind"];
+                resourceId: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the content. `FORBIDDEN` — the caller lacks `content.share`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createShares: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShareCreate"];
+            };
+        };
+        responses: {
+            /** @description Shared with everyone in `grants`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareCreateResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the content. `FORBIDDEN` — the caller lacks `content.share`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    deleteShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller is the grant's recipient; they leave with `removeSharedWithMe`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    access: components["schemas"]["ShareAccess"];
+                };
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareGrant"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller is the grant's recipient, not the content's owner. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listSharedWithMe: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["ShareKind"];
+                /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
+                q?: components["parameters"]["Query"];
+                /**
+                 * @description 1-based page number. Lists are OFFSET-paginated so a client can draw
+                 *     numbered pages (O-20 overrides §13.8's keyset rule for the teacher's
+                 *     lists: at this scale the teacher wants "trang 3 / 26" more than
+                 *     stability under concurrent inserts). A page past the end is an empty
+                 *     `items` with the same `total`.
+                 *
+                 *     Page size is `limit`, declared per operation with its own default -- a
+                 *     media grid wants a different page from a table of tests. The response
+                 *     echoes the size actually used as `pageSize`; compute page counts from
+                 *     that and `total`, never from an assumed size.
+                 */
+                page?: components["parameters"]["Page"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageInfo"] & {
+                        items: components["schemas"]["SharedWithMeItem"][];
+                        counts: components["schemas"]["SharedWithMeCounts"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    removeSharedWithMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
         };
@@ -13358,6 +14753,9 @@ export interface operations {
              *     `details.tests` names those versions as `ReferencingTest[]`,
              *     sorted by title then version (A-07). `details.groups` names protected
              *     draft/bank context as `ReferencingGroup[]`, sorted by title then ID.
+             *     `MEDIA_IN_USE_ELSEWHERE` — a live bank question or draft group of
+             *     another teacher uses it, through a copy or a share.
+             *     `details.count` says how many; nothing of theirs is named.
              */
             409: {
                 headers: {
