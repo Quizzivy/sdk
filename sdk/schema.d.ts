@@ -1468,6 +1468,210 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/messages/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The staff Messages list
+         * @description Every class channel of a class the caller can read and that is not
+         *     archived, posted in or not, and the caller's direct threads, newest
+         *     activity first (a channel nobody has posted in sorts last, by name).
+         *     A direct thread is readable by its two participants only; `scope.all`
+         *     opens none (D17, DG-08).
+         *
+         *     `q` matches the student's and the class's names, accent-insensitively.
+         *     With `q`, the answer also lists, after the threads, up to 20 students
+         *     the caller may start a thread with and has none with, as
+         *     `candidate` rows.
+         *
+         *     The rows are under `threads`, not `items`: they mix two kinds, and a
+         *     student two teachers teach is rightly in both teachers' lists.
+         */
+        get: operations["listStaffThreads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/students/{studentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The caller's direct thread with a student, empty until the first
+         *     post. `studentId` is a `messaging-peer`: a student the caller has a
+         *     thread with, has taught (now or before), or created. Any other id
+         *     answers 404, an admin's included, and so does the thread of another
+         *     staff member with the same student.
+         */
+        get: operations["getStaffDirectThread"];
+        put?: never;
+        /**
+         * Write to a student
+         * @description The first post makes the thread. A thread that exists stays open to
+         *     both of its participants after the student leaves the caller's
+         *     classes. Writing first needs a tie: the student is, or was, in a
+         *     class of the caller's, or the caller created the account; and the
+         *     student must be enabled and still a student. Not audited (D17).
+         *
+         *     Limited to 30 a minute and 500 a day per staff member.
+         */
+        post: operations["postStaffDirectMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/students/{studentId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a direct thread
+         * @description The pointer only moves forward. `lastReadMessageId` is checked
+         *     against the thread, so it names no resource of its own.
+         */
+        post: operations["markStaffDirectThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/classes/{classId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description A class's announcement channel, for anyone who can read the class
+         *     (its teacher, or `scope.all`). Each post carries `seenBy`.
+         */
+        get: operations["getStaffClassThread"];
+        put?: never;
+        /**
+         * Post an announcement to a class
+         * @description Reaches every active student of the class; replies come back as
+         *     direct messages. An announcement can be neither edited nor deleted.
+         *     Not audited (D17).
+         *
+         *     Limited to 30 a minute and 500 a day per staff member.
+         */
+        post: operations["postClassAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/classes/{classId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a class channel
+         * @description The pointer only moves forward. `lastReadMessageId` is checked
+         *     against the thread, so it names no resource of its own.
+         */
+        post: operations["markStaffClassThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file to send in a message
+         * @description The file waits, unsent, until a post names it; one left unsent for 24
+         *     hours is removed. The type comes from sniffing the content, never
+         *     from the part's `Content-Type` or the extension: PDF, Word (DOCX or
+         *     DOC), PNG, JPEG, MP3 or M4A. WebP is refused. An image's header must
+         *     declare at most 10000 × 10000 pixels; nothing is decoded further, and
+         *     the file is kept as it came. A Word file is never opened or
+         *     converted on the server, and one that carries macros is refused.
+         *     `filename` is the part's name with any path dropped, at most 200
+         *     characters, and ending in an extension of the sniffed type:
+         *     `report` that holds a PDF is stored as `report.pdf`, and
+         *     `bai-tap.exe` as `bai-tap.exe.pdf`, so a downloaded file opens as
+         *     what it is.
+         *
+         *     Limited to 20 an hour per staff member.
+         */
+        post: operations["uploadMessageAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/attachments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Mint the download URL of a message's file
+         * @description For the participants of the thread whose message holds the file (a
+         *     direct thread's staff member and student, and a class channel's
+         *     readers: staff whose class scope reaches the class, and its
+         *     current members), and its uploader before it is sent. Anyone
+         *     else gets 404, as for a missing id: an admin on a direct
+         *     message's file included, whom `scope.all` does not let into the
+         *     thread. The URL is a credential, so the answer is not stored.
+         */
+        get: operations["getStaffMessageAttachmentUrl"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/teacher/imports": {
         parameters: {
             query?: never;
@@ -3831,7 +4035,10 @@ export interface paths {
          * @description Queues one export for the worker and answers at once. It builds a ZIP
          *     of `users.csv` (no password hashes or tokens), `roles.csv`,
          *     `classes.csv` (no join codes), `class_members.csv`, `tests.csv`,
-         *     `test_versions.csv`, `assignments.csv`, `attempts.csv`, with
+         *     `test_versions.csv`, `assignments.csv`, `attempts.csv`, `leads.csv`,
+         *     `messages_summary.csv` (one row per conversation: its kind, class or
+         *     two participants, message count and first and last message times,
+         *     never a message's text, a file's name or an attachment), with
          *     `answers.csv` when `includeAnswers` is true, and a `README.txt` in
          *     Vietnamese and English that describes each file. Every CSV is UTF-8
          *     with a byte-order mark and CRLF line ends, and a cell that a
@@ -5014,6 +5221,162 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/messages/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The student's Messages list
+         * @description The student's direct threads, and the channels of the classes they
+         *     are in, not archived, that have at least one post, newest first. An
+         *     archived class's channel stays readable by its members
+         *     (`getStudentClassThread`) and is not listed.
+         */
+        get: operations["listStudentThreads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/teachers/{teacherId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The student's thread with a teacher: one who teaches a class the
+         *     student is in that is not archived, or one they already have a
+         *     thread with. `teacherId`
+         *     is a user id whose eligibility the operation checks (not an owned
+         *     resource); any other id answers 404.
+         */
+        get: operations["getStudentDirectThread"];
+        put?: never;
+        /**
+         * Write to a teacher
+         * @description Text only. A student may write first to the teacher of a class they
+         *     are in that is not archived, and goes on writing in a thread that
+         *     exists after leaving the class or after the class is archived; they
+         *     cannot write first to a teacher of a class they left, or of a class
+         *     that is archived.
+         *
+         *     Limited to 10 a minute and 200 a day per student.
+         */
+        post: operations["postStudentDirectMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/teachers/{teacherId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a direct thread
+         * @description The pointer only moves forward. `lastReadMessageId` is checked
+         *     against the thread, so it names no resource of its own.
+         */
+        post: operations["markStudentDirectThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/classes/{classId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The announcements of a class the student is in, archived or not.
+         *     Read-only: there is no post operation on this path, so a `POST`
+         *     answers 405, and the channel's post operation,
+         *     `postClassAnnouncement`, answers a student 403.
+         */
+        get: operations["getStudentClassThread"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/classes/{classId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a class channel
+         * @description The pointer only moves forward. `lastReadMessageId` is checked
+         *     against the thread, so it names no resource of its own.
+         */
+        post: operations["markStudentClassThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/attachments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Mint the download URL of a message's file
+         * @description For the participants of the thread whose message holds the file (a
+         *     direct thread's staff member and student, and a class channel's
+         *     readers: staff whose class scope reaches the class, and its
+         *     current members), and its uploader before it is sent. Anyone
+         *     else gets 404, as for a missing id: an admin on a direct
+         *     message's file included, whom `scope.all` does not let into the
+         *     thread. The URL is a credential, so the answer is not stored.
+         */
+        get: operations["getStudentMessageAttachmentUrl"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/notifications": {
         parameters: {
             query?: never;
@@ -5756,7 +6119,7 @@ export interface components {
          *     be sent again.
          * @enum {string}
          */
-        ErrorCode: "INVALID_CREDENTIALS" | "ACCOUNT_NOT_PROVISIONED" | "ACCOUNT_DISABLED" | "EMAIL_NOT_VERIFIED" | "PASSWORD_REQUIRED" | "PASSWORD_UNCHANGED" | "IDENTITY_ALREADY_LINKED" | "LAST_LOGIN_METHOD" | "SET_PASSWORD_LINK_INVALID" | "REFRESH_TOKEN_INVALID" | "REFRESH_TOKEN_REUSED" | "SESSION_IS_CURRENT" | "JOIN_CODE_INVALID" | "JOIN_CODE_EXPIRED" | "JOIN_CODE_EXHAUSTED" | "JOIN_CODE_REVOKED" | "CLASS_ARCHIVED" | "EMAIL_TAKEN" | "STUDENT_SHARED" | "ROLE_NAME_TAKEN" | "ROLE_LIMIT_REACHED" | "ROLE_NOT_ASSIGNABLE" | "SEAT_LIMIT" | "TEACHER_LIMIT" | "STORAGE_LIMIT" | "ROLE_LOCKED" | "STUDENT_NEEDS_TAKE_TESTS" | "KEY_NOT_GRANTABLE" | "CANNOT_ACT_ON_SELF" | "TARGET_ROLE_NOT_ALLOWED" | "LAST_ADMIN" | "USER_OWNS_CONTENT" | "USER_NOT_DISABLED" | "INVALID_RECIPIENT" | "RESOURCE_REFERENCED" | "RESOURCE_NOT_ARCHIVED" | "VERSION_IS_CURRENT" | "TEST_NOT_PUBLISHED" | "TEST_ARCHIVED" | "GROUP_OUTLINE_REQUIRED" | "GROUP_CONFLICT" | "PUBLISH_VALIDATION_FAILED" | "STALE_WRITE" | "PLAY_ID_CONFLICT" | "QUESTION_REFERENCED" | "MEDIA_REFERENCED" | "MEDIA_TYPE_UNSUPPORTED" | "MEDIA_TOO_LARGE" | "MEDIA_TOO_LONG" | "MEDIA_UNREADABLE" | "MEDIA_KIND_MISMATCH" | "MEDIA_QUOTA_EXCEEDED" | "IMAGE_DIMENSIONS" | "SHARE_OWNER_ONLY" | "SHARE_READ_ONLY" | "EDIT_CONTEXT_REQUIRED" | "MEDIA_IN_USE_ELSEWHERE" | "IMPORT_CONFLICT" | "IMPORT_QUOTA_EXCEEDED" | "IMPORT_BUSY" | "IMPORT_SOURCE_INVALID" | "IMPORT_SOURCE_TOO_LARGE" | "IMPORT_SOURCE_UNSUPPORTED" | "IMPORT_NOT_READY" | "IMPORT_NOT_PROCESSED" | "IMPORT_PROCESSING_UNAVAILABLE" | "IMPORT_FILES_REMOVED" | "ASSIGNMENT_NOT_OPEN" | "ASSIGNMENT_NOT_CLOSED" | "ASSIGNMENT_CLOSED" | "ATTEMPT_LIMIT_REACHED" | "ATTEMPT_CLOSED" | "ATTEMPT_IN_PROGRESS" | "ATTEMPT_VOIDED" | "SESSION_SUPERSEDED" | "DEADLINE_PASSED" | "DEADLINE_NOT_REACHED" | "GRADING_INCOMPLETE" | "ANSWER_REMOVED" | "GRADE_NEEDS_BAND" | "GRADE_CRITERIA_INCOMPLETE" | "GRADE_NEEDS_POINTS" | "GRADE_BAND_NOT_ALLOWED" | "VERSION_LOCKED" | "ASSIGNMENT_LOCKED" | "AI_OFF" | "AI_PAUSED" | "AI_READ_OFF" | "AI_CREDITS_EXHAUSTED" | "AI_UNAVAILABLE" | "AI_REQUESTS_OFF" | "AI_REQUEST_PENDING" | "AI_REQUEST_DECIDED" | "AI_REQUEST_EXPIRED" | "AI_ALLOWANCE_BELOW_USE" | "EXPORT_TOO_LARGE" | "EXPORT_IN_PROGRESS" | "EXPORT_UNAVAILABLE" | "EXPORT_OFF" | "USER_IMPORT_FILE_TOO_LARGE" | "USER_IMPORT_FILE_UNREADABLE" | "USER_IMPORT_FILE_EMPTY" | "USER_IMPORT_TOO_MANY_ROWS" | "USER_IMPORT_COLUMNS" | "USER_IMPORT_NOTHING_TO_CREATE" | "SHEET_UNAVAILABLE" | "CSV_NOT_UTF8" | "XLSX_MACROS" | "XLSX_ENCRYPTED" | "SIGN_IN_POLICY_LOCKOUT" | "PASSWORD_SIGN_IN_DISABLED" | "GOOGLE_SIGN_IN_DISABLED" | "GOOGLE_DOMAIN_NOT_ALLOWED" | "MAINTENANCE" | "MAINTENANCE_SCHEDULED" | "VALIDATION_FAILED" | "REQUEST_INCOMPLETE" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "UNAUTHORIZED" | "FORBIDDEN" | "PASSWORD_CHANGE_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
+        ErrorCode: "INVALID_CREDENTIALS" | "ACCOUNT_NOT_PROVISIONED" | "ACCOUNT_DISABLED" | "EMAIL_NOT_VERIFIED" | "PASSWORD_REQUIRED" | "PASSWORD_UNCHANGED" | "IDENTITY_ALREADY_LINKED" | "LAST_LOGIN_METHOD" | "SET_PASSWORD_LINK_INVALID" | "REFRESH_TOKEN_INVALID" | "REFRESH_TOKEN_REUSED" | "SESSION_IS_CURRENT" | "JOIN_CODE_INVALID" | "JOIN_CODE_EXPIRED" | "JOIN_CODE_EXHAUSTED" | "JOIN_CODE_REVOKED" | "CLASS_ARCHIVED" | "EMAIL_TAKEN" | "STUDENT_SHARED" | "ROLE_NAME_TAKEN" | "ROLE_LIMIT_REACHED" | "ROLE_NOT_ASSIGNABLE" | "SEAT_LIMIT" | "TEACHER_LIMIT" | "STORAGE_LIMIT" | "ROLE_LOCKED" | "STUDENT_NEEDS_TAKE_TESTS" | "KEY_NOT_GRANTABLE" | "CANNOT_ACT_ON_SELF" | "TARGET_ROLE_NOT_ALLOWED" | "LAST_ADMIN" | "USER_OWNS_CONTENT" | "USER_NOT_DISABLED" | "INVALID_RECIPIENT" | "RESOURCE_REFERENCED" | "RESOURCE_NOT_ARCHIVED" | "VERSION_IS_CURRENT" | "TEST_NOT_PUBLISHED" | "TEST_ARCHIVED" | "GROUP_OUTLINE_REQUIRED" | "GROUP_CONFLICT" | "PUBLISH_VALIDATION_FAILED" | "STALE_WRITE" | "PLAY_ID_CONFLICT" | "QUESTION_REFERENCED" | "MEDIA_REFERENCED" | "MEDIA_TYPE_UNSUPPORTED" | "MEDIA_TOO_LARGE" | "MEDIA_TOO_LONG" | "MEDIA_UNREADABLE" | "MEDIA_KIND_MISMATCH" | "MEDIA_QUOTA_EXCEEDED" | "IMAGE_DIMENSIONS" | "SHARE_OWNER_ONLY" | "SHARE_READ_ONLY" | "EDIT_CONTEXT_REQUIRED" | "MEDIA_IN_USE_ELSEWHERE" | "MESSAGING_NOT_ALLOWED" | "ATTACHMENT_HAS_MACROS" | "IMPORT_CONFLICT" | "IMPORT_QUOTA_EXCEEDED" | "IMPORT_BUSY" | "IMPORT_SOURCE_INVALID" | "IMPORT_SOURCE_TOO_LARGE" | "IMPORT_SOURCE_UNSUPPORTED" | "IMPORT_NOT_READY" | "IMPORT_NOT_PROCESSED" | "IMPORT_PROCESSING_UNAVAILABLE" | "IMPORT_FILES_REMOVED" | "ASSIGNMENT_NOT_OPEN" | "ASSIGNMENT_NOT_CLOSED" | "ASSIGNMENT_CLOSED" | "ATTEMPT_LIMIT_REACHED" | "ATTEMPT_CLOSED" | "ATTEMPT_IN_PROGRESS" | "ATTEMPT_VOIDED" | "SESSION_SUPERSEDED" | "DEADLINE_PASSED" | "DEADLINE_NOT_REACHED" | "GRADING_INCOMPLETE" | "ANSWER_REMOVED" | "GRADE_NEEDS_BAND" | "GRADE_CRITERIA_INCOMPLETE" | "GRADE_NEEDS_POINTS" | "GRADE_BAND_NOT_ALLOWED" | "VERSION_LOCKED" | "ASSIGNMENT_LOCKED" | "AI_OFF" | "AI_PAUSED" | "AI_READ_OFF" | "AI_CREDITS_EXHAUSTED" | "AI_UNAVAILABLE" | "AI_REQUESTS_OFF" | "AI_REQUEST_PENDING" | "AI_REQUEST_DECIDED" | "AI_REQUEST_EXPIRED" | "AI_ALLOWANCE_BELOW_USE" | "EXPORT_TOO_LARGE" | "EXPORT_IN_PROGRESS" | "EXPORT_UNAVAILABLE" | "EXPORT_OFF" | "USER_IMPORT_FILE_TOO_LARGE" | "USER_IMPORT_FILE_UNREADABLE" | "USER_IMPORT_FILE_EMPTY" | "USER_IMPORT_TOO_MANY_ROWS" | "USER_IMPORT_COLUMNS" | "USER_IMPORT_NOTHING_TO_CREATE" | "SHEET_UNAVAILABLE" | "CSV_NOT_UTF8" | "XLSX_MACROS" | "XLSX_ENCRYPTED" | "SIGN_IN_POLICY_LOCKOUT" | "PASSWORD_SIGN_IN_DISABLED" | "GOOGLE_SIGN_IN_DISABLED" | "GOOGLE_DOMAIN_NOT_ALLOWED" | "MAINTENANCE" | "MAINTENANCE_SCHEDULED" | "VALIDATION_FAILED" | "REQUEST_INCOMPLETE" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "UNAUTHORIZED" | "FORBIDDEN" | "PASSWORD_CHANGE_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
         /**
          * @description Extracted so a response carrying the envelope AND something else can
          *     reference it without composing over a closed schema (issue #41).
@@ -6657,12 +7020,13 @@ export interface components {
         /**
          * @description What still references a row whose permanent delete answered
          *     `RESOURCE_REFERENCED`, carried as `details.referencedBy` by
-         *     `deleteClass` and `deleteUser`. `other` is a reference the server does
-         *     not name. Later releases add values; a client treats an unknown one as
-         *     `other`.
+         *     `deleteClass` and `deleteUser`. `messages` is a class channel with posts,
+         *     or an account's messages, threads or files. `other` is a reference the
+         *     server does not name. Later releases add values; a client treats an
+         *     unknown one as `other`.
          * @enum {string}
          */
-        ReferencedBy: "assignments" | "attempts" | "audit" | "members" | "owned_content" | "other";
+        ReferencedBy: "assignments" | "attempts" | "audit" | "members" | "messages" | "owned_content" | "other";
         MediaReplacementCounts: {
             questions: number;
             groups: number;
@@ -6952,6 +7316,14 @@ export interface components {
          *     rejects the very body it documents (see issue #41).
          */
         StudentRow: {
+            /**
+             * @description The caller may open a direct thread with this student and post in
+             *     it (`postStaffDirectMessage` would be accepted): an existing thread,
+             *     or a tie (a class of the caller's, now or before, or an account the
+             *     caller created), with the account enabled and still a student.
+             *     `scope.all` does not widen it. The row menu's "Send message" reads it.
+             */
+            canMessage: boolean;
             id: components["schemas"]["Uuid"];
             /** Format: email */
             email: string;
@@ -7551,6 +7923,8 @@ export interface components {
             notify: boolean;
         };
         ClassMember: {
+            /** @description As `StudentRow.canMessage`, for the caller and this member. Another teacher's class read through `scope.all` answers false for its students the caller never taught. */
+            canMessage: boolean;
             userId: components["schemas"]["Uuid"];
             /** @description The same figures G-07 shows, so G-06's roster carries "Bài đã nộp" and "Điểm TB". */
             stats: components["schemas"]["StudentStats"];
@@ -7579,6 +7953,11 @@ export interface components {
             id: components["schemas"]["Uuid"];
             name: string;
             description: string | null;
+            /**
+             * Format: uuid
+             * @description The class's own teacher, so the class card can open their thread (`getStudentDirectThread`).
+             */
+            teacherId: string | null;
             /** @description The display name of the class's own teacher. */
             teacherName: string | null;
             /** @description The teacher's profile photo, a presigned GET valid 24 hours; `null` when the teacher has none or no store is configured. */
@@ -9559,6 +9938,8 @@ export interface components {
             unreadNotifications: number;
             /** @description Live grants to the caller, the muted count beside "Shared with me". */
             sharedWithMe: number;
+            /** @description Messages past the caller's read pointers, not counting their own, over their threads. The nav shows "99+" above 99. */
+            unreadMessages: number;
         };
         ClosingAssignment: {
             id: components["schemas"]["Uuid"];
@@ -10136,6 +10517,15 @@ export interface components {
          *     | `class.teacher_changed` | a teacher | `className`, and `teacherName` for the class's previous teacher |
          *     | `content.shared` | a teacher | `sharerName`, `contentKind`, `name`, `access`, and `message` when the sharer wrote one |
          *     | `test.published_by_collaborator` | a teacher | `editorName`, `title`, `version` |
+         *     | `message.received` | a teacher | `senderName`, `count`, `excerpt` |
+         *     | `message.from_teacher` | a student | `senderName`, `count`, `excerpt`, and `className` for an announcement |
+         *
+         *     A message item is one per reader per thread: it is written again,
+         *     unread, with the new `count` while the thread stays unread, and marked
+         *     read when the reader's pointer passes it. Each write gives it a new
+         *     `id` and `createdAt`, so it lists first, and once it was read its
+         *     `count` starts again from the next message. `excerpt` is the newest
+         *     message's first 80 characters; it lives only in the reader's own bell.
          *
          *     The three `ai.*` kinds are for the teacher's bell. `ai.credit_request`
          *     is written for every holder of `ai.credits.manage`, who reads it in the
@@ -10146,7 +10536,7 @@ export interface components {
          *     the kind stays so that the notifications it wrote still read.
          * @enum {string}
          */
-        NotificationKind: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "class.joined" | "join_codes.rotated" | "assignment.opened" | "assignment.due_soon" | "assignment.extended" | "result.ready" | "ai.allowance_warning" | "ai.credit_request" | "ai.credit_request.decided" | "content.transferred" | "class.teacher_changed" | "content.shared" | "test.published_by_collaborator";
+        NotificationKind: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "class.joined" | "join_codes.rotated" | "assignment.opened" | "assignment.due_soon" | "assignment.extended" | "result.ready" | "ai.allowance_warning" | "ai.credit_request" | "ai.credit_request.decided" | "content.transferred" | "class.teacher_changed" | "content.shared" | "test.published_by_collaborator" | "message.received" | "message.from_teacher";
         /**
          * @description The console that reads a notification, and so which of the caller's
          *     notifications a bell counts, lists and clears. Which kinds each one
@@ -10163,16 +10553,19 @@ export interface components {
         /**
          * @description One switch of the notification settings. `attempt.submitted`,
          *     `attempt.flagged` and `assignment.closing` are the teacher's;
-         *     `assignment.due_soon` and `result.ready` the student's. A switch
-         *     governs the kind of the same name, and `assignment.due_soon` also
-         *     governs `assignment.opened` and `assignment.extended`. `class.joined`
+         *     `assignment.due_soon` and `result.ready` the student's;
+         *     `message.received` both ("New message" for a teacher, "Messages from
+         *     teachers" for a student). A switch governs the kind of the same name,
+         *     `assignment.due_soon` also governs `assignment.opened` and
+         *     `assignment.extended`, and `message.received` also governs
+         *     `message.from_teacher`. `class.joined`
          *     `join_codes.rotated`, `class.teacher_changed`, `content.shared` and
          *     `test.published_by_collaborator` have no switch: the sharer's "Send a
          *     notification" decides the first, and the owner always hears of the
          *     second.
          * @enum {string}
          */
-        NotificationEvent: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "assignment.due_soon" | "result.ready";
+        NotificationEvent: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "assignment.due_soon" | "result.ready" | "message.received";
         /**
          * @description What the client builds a notification's sentence from. One closed set
          *     of fields for every kind; `NotificationKind` says which of them a kind
@@ -10220,6 +10613,10 @@ export interface components {
             editorName?: string;
             /** @description The version a co-editor published. */
             version?: number;
+            /** @description Who wrote the newest message (`message.*`). */
+            senderName?: string;
+            /** @description The newest message's first 80 characters, or its file's name (`message.*`). */
+            excerpt?: string;
         };
         /**
          * @description Where a click on the notification goes: a page the client resolves from
@@ -10229,17 +10626,24 @@ export interface components {
          */
         NotificationTarget: {
             /**
-             * @description `assignment`, `attempt`, `grading`, `classes`, `sharedWithMe`
-             *     and `test` are pages of the teaching workspace; `result` and
-             *     `studentAssignment` are the student's result and the student's
-             *     page of an assignment.
+             * @description `assignment`, `attempt`, `grading`, `classes`, `sharedWithMe`,
+             *     `test` and `messages` are pages of the teaching workspace;
+             *     `result`, `studentAssignment` and `studentMessages` are the
+             *     student's result, the student's page of an assignment and the
+             *     student's Messages.
              * @enum {string}
              */
-            route: "assignment" | "attempt" | "grading" | "classes" | "result" | "studentAssignment" | "sharedWithMe" | "test";
+            route: "assignment" | "attempt" | "grading" | "classes" | "result" | "studentAssignment" | "sharedWithMe" | "test" | "messages" | "studentMessages";
             assignmentId?: components["schemas"]["Uuid"];
             attemptId?: components["schemas"]["Uuid"];
             /** @description Present for `test`. */
             testId?: components["schemas"]["Uuid"];
+            /** @description `messages`: the direct thread with this student. */
+            studentId?: components["schemas"]["Uuid"];
+            /** @description `studentMessages`: the direct thread with this teacher. */
+            teacherId?: components["schemas"]["Uuid"];
+            /** @description `studentMessages`: the channel of this class. */
+            classId?: components["schemas"]["Uuid"];
         };
         Notification: {
             id: components["schemas"]["Uuid"];
@@ -10268,6 +10672,260 @@ export interface components {
         /** @description What the caller's shell shows before any page is open. */
         MySummary: {
             unreadNotifications: number;
+            /** @description A student's unread messages over their threads (the top bar's Messages button); 0 for staff, whose count is `TeacherSummary.unreadMessages`. */
+            unreadMessages: number;
+        };
+        /**
+         * @description A file a staff member attached (D17): PDF, Word (DOCX or DOC), PNG,
+         *     JPEG, MP3 or M4A, at most 20 MiB, typed by sniffing its content. It is
+         *     fetched through a five-minute signed URL that downloads it under
+         *     `filename`.
+         */
+        MessageAttachment: {
+            id: components["schemas"]["Uuid"];
+            filename: string;
+            bytes: number;
+            /** @enum {string} */
+            mimeType: "application/pdf" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "application/msword" | "image/png" | "image/jpeg" | "audio/mpeg" | "audio/mp4";
+        };
+        AttachmentUrl: {
+            /** @description A presigned GET valid five minutes that downloads the file as an attachment under its filename, with its sniffed type. */
+            url: string;
+            expiresAt: components["schemas"]["Timestamp"];
+        };
+        /**
+         * @description The newest message of a thread, as a row of the list shows it. The
+         *     client words "Attachment · {filename}" from `attachmentName` when
+         *     `text` is null.
+         */
+        MessagePreview: {
+            /** @description The body's first 120 characters, on one line. */
+            text: string | null;
+            attachmentName: string | null;
+            /** @description The caller sent it. */
+            mine: boolean;
+        };
+        /** @description Which thread a row opens. A class channel names its class, a direct thread its student. */
+        StaffThreadRef: {
+            /** @enum {string} */
+            kind: "class" | "direct";
+            /** Format: uuid */
+            classId: string | null;
+            /** Format: uuid */
+            studentId: string | null;
+        };
+        /**
+         * @description A row of the staff Messages list. A class row's `title` is the class's
+         *     name and `studentCount` its active students. A direct row's `title` is
+         *     the student's name and `classNames` the caller's classes the student
+         *     is in: empty, with `former`, when the student was in one of the
+         *     caller's classes and is in none now ("Former student"). A `candidate`
+         *     is a student the caller may write to and has no thread with yet,
+         *     listed only for a search: nothing exists until the first post.
+         */
+        StaffThread: {
+            thread: components["schemas"]["StaffThreadRef"];
+            title: string;
+            /** @description A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none. */
+            avatarUrl: string | null;
+            classNames: string[];
+            /** @description A class row's active students; `null` on a direct row. */
+            studentCount: number | null;
+            former: boolean;
+            candidate: boolean;
+            /** @description A direct row's student account is disabled. */
+            disabled: boolean;
+            /**
+             * Format: date-time
+             * @description `null` for a class channel nobody has posted in, and for a candidate.
+             */
+            lastMessageAt: string | null;
+            preview: components["schemas"]["MessagePreview"] | null;
+            /** @description Messages past the caller's read pointer, not counting their own. */
+            unread: number;
+        };
+        MessageSender: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+        };
+        StaffMessageSender: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            /** @enum {string} */
+            side: "staff" | "student";
+        };
+        /** @description An announcement's "Seen by {seen} of {of}": `of` counts the class's active students now, and `seen` those whose read pointer has passed the post. */
+        SeenBy: {
+            seen: number;
+            of: number;
+        };
+        /** @description A message as staff read it. Messages are never edited or deleted. */
+        StaffMessage: {
+            id: components["schemas"]["Uuid"];
+            sender: components["schemas"]["StaffMessageSender"];
+            /** @description Plain text. A client renders it as text and links http(s) addresses; never HTML. */
+            body: string | null;
+            attachment: components["schemas"]["MessageAttachment"] | null;
+            createdAt: components["schemas"]["Timestamp"];
+            mine: boolean;
+            /** @description Present on a class channel's posts only. */
+            seenBy?: components["schemas"]["SeenBy"];
+        };
+        /**
+         * @description A message as a student reads it: its own schema, never a projection
+         *     of `StaffMessage` (D17, DG-91). It carries no read receipts, no member
+         *     count and no attempt events.
+         */
+        StudentMessage: {
+            id: components["schemas"]["Uuid"];
+            sender: components["schemas"]["MessageSender"];
+            body: string | null;
+            attachment: components["schemas"]["MessageAttachment"] | null;
+            createdAt: components["schemas"]["Timestamp"];
+            mine: boolean;
+        };
+        /**
+         * @description A flagged attempt of the thread's student on an assignment the reader
+         *     can read, shown in the stream as a card at `at`. Computed when the
+         *     thread is read, never stored as a message, and never unread.
+         */
+        ContextEvent: {
+            attemptId: components["schemas"]["Uuid"];
+            assignmentId: components["schemas"]["Uuid"];
+            /** @description The test's title. */
+            title: string;
+            focusLost: number;
+            at: components["schemas"]["Timestamp"];
+        };
+        StaffDirectThreadPeer: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            /** @description The caller's classes the student is in now, for Details. */
+            classes: components["schemas"]["PersonRef"][];
+            /** @description The student was in a class of the caller's and is in none now. */
+            former: boolean;
+            disabled: boolean;
+            /** @description A post would be accepted. False when the account is disabled or no longer a student; the composer then gives way to a sentence. */
+            canPost: boolean;
+        };
+        StaffDirectThread: {
+            student: components["schemas"]["StaffDirectThreadPeer"];
+            /** @description Oldest first. */
+            messages: components["schemas"]["StaffMessage"][];
+            /** @description The student's flagged attempts from 24 hours before the thread's first message, oldest first. Empty while the thread has no message. */
+            contextEvents: components["schemas"]["ContextEvent"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
+        };
+        StaffClassThreadClass: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            /** @description An archived class's channel stays readable and takes no post. */
+            archived: boolean;
+            /** @description Active students, "Sent to all {n} students". */
+            studentCount: number;
+        };
+        StaffClassThread: {
+            class: components["schemas"]["StaffClassThreadClass"];
+            /** @description Oldest first, each with `seenBy`. */
+            messages: components["schemas"]["StaffMessage"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
+        };
+        /** @description A message is text, a file, or both; one of the two is required. */
+        StaffMessagePost: {
+            /** @description Made by the client for this message. Sending it again returns the message it made, so a retried send never posts twice. */
+            clientId: components["schemas"]["Uuid"];
+            /** @description Trimmed; empty is none. */
+            body?: string | null;
+            /**
+             * Format: uuid
+             * @description A file the caller uploaded with `uploadMessageAttachment` and has not sent.
+             */
+            attachmentId?: string | null;
+        };
+        StudentMessagePost: {
+            clientId: components["schemas"]["Uuid"];
+            /** @description Trimmed. Students send text only. */
+            body: string;
+        };
+        MessageReadPointer: {
+            /** @description The newest message on the reader's screen. The pointer only moves forward; an older id is a no-op. */
+            lastReadMessageId: components["schemas"]["Uuid"];
+        };
+        StudentThreadRef: {
+            /** @enum {string} */
+            kind: "class" | "direct";
+            /** Format: uuid */
+            classId: string | null;
+            /** Format: uuid */
+            teacherId: string | null;
+        };
+        /**
+         * @description A row of the student's Messages. A direct row's `title` is the
+         *     teacher's name and `classNames` the student's classes they teach that
+         *     are not archived ("Your teacher · {classes}"). It is empty with
+         *     `former` when the teacher taught the student and teaches them in no
+         *     such class now, having left them all or seen them archived ("Former
+         *     teacher"). It is empty without `former` when the staff member never
+         *     taught the student (one who created the student's account and wrote
+         *     first): the subtitle is then "Your teacher" alone, with no " · " and
+         *     nothing after it. A class row is a channel with at least one post
+         *     ("Class announcements"), titled with the class's name.
+         */
+        StudentThread: {
+            thread: components["schemas"]["StudentThreadRef"];
+            title: string;
+            avatarUrl: string | null;
+            classNames: string[];
+            former: boolean;
+            /** Format: date-time */
+            lastMessageAt: string | null;
+            preview: components["schemas"]["MessagePreview"] | null;
+            unread: number;
+        };
+        /**
+         * @description The thread's header. `classNames` and `former` read as they do on the
+         *     thread's `StudentThread` row: "Your teacher · {classes}", "Former
+         *     teacher", or "Your teacher" alone when both are empty and false.
+         */
+        StudentDirectThreadTeacher: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            classNames: string[];
+            former: boolean;
+            /** @description A post would be accepted. */
+            canPost: boolean;
+        };
+        StudentDirectThread: {
+            teacher: components["schemas"]["StudentDirectThreadTeacher"];
+            /** @description Oldest first. */
+            messages: components["schemas"]["StudentMessage"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
+        };
+        /** @description A class channel, read-only for students: "Only your teacher can post here. Reply to {teacher} directly." */
+        StudentClassThread: {
+            /** @constant */
+            readOnly: true;
+            class: components["schemas"]["PersonRef"];
+            teacher: components["schemas"]["MessageSender"];
+            /** @description Oldest first. */
+            messages: components["schemas"]["StudentMessage"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
         };
         /**
          * @description What the caller may do with a test or a question set (D4). `owner` is
@@ -13778,6 +14436,345 @@ export interface operations {
             404: components["responses"]["NotFound"];
         };
     };
+    listStaffThreads: {
+        parameters: {
+            query?: {
+                tab?: "all" | "direct" | "classes";
+                /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
+                q?: components["parameters"]["Query"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        threads: components["schemas"]["StaffThread"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getStaffDirectThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffDirectThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postStaffDirectMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffMessagePost"];
+            };
+        };
+        responses: {
+            /** @description `clientId` repeats: the message it made. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            /** @description Sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `MESSAGING_NOT_ALLOWED` — a messaging peer whose account is disabled or no longer a student. The thread stays readable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — neither a body nor a file, or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    markStaffDirectThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getStaffClassThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffClassThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postClassAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffMessagePost"];
+            };
+        };
+        responses: {
+            /** @description `clientId` repeats: the message it made. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            /** @description Posted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description `CLASS_ARCHIVED` — restore the class first. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — neither a body nor a file, or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    markStaffClassThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadMessageAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored, not yet sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageAttachment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            /** @description `MEDIA_TOO_LARGE` — over 20 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /**
+             * @description `MEDIA_TYPE_UNSUPPORTED` — not one of the accepted types (a WebP,
+             *     a spreadsheet, a ZIP named `.docx`). `IMAGE_DIMENSIONS` — an image
+             *     larger than 10000 × 10000. `ATTACHMENT_HAS_MACROS` — a Word file
+             *     with macros (a DOCM, or a DOC with a `Macros` storage): save it
+             *     without them and attach it again.
+             */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getStaffMessageAttachmentUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description `private, no-store`. */
+                    "Cache-Control": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentUrl"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
     listWordImports: {
         parameters: {
             query?: {
@@ -16262,7 +17259,8 @@ export interface operations {
              *     created), `attempts`, `audit` (audit history it acted in),
              *     `owned_content` (tests, questions, question groups, media, classes,
              *     join codes, published versions or Word imports it owns or created),
-             *     or `other`.
+             *     `messages` (a message it sent, a thread it is in, a file it
+             *     uploaded), or `other`.
              */
             409: {
                 headers: {
@@ -18199,7 +19197,7 @@ export interface operations {
              *     `details.referencedBy` (`ReferencedBy`) always names what:
              *     `assignments` (an assignment targets the class), `members` (a
              *     membership in another class came through one of its join codes),
-             *     or `other`.
+             *     `messages` (its announcement channel has posts), or `other`.
              */
             409: {
                 headers: {
@@ -19402,6 +20400,229 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listStudentThreads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        threads: components["schemas"]["StudentThread"][];
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getStudentDirectThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentDirectThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postStudentDirectMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentMessagePost"];
+            };
+        };
+        responses: {
+            /** @description `clientId` repeats: the message it made. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentMessage"];
+                };
+            };
+            /** @description Sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentMessage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `MESSAGING_NOT_ALLOWED` — the teacher's account is disabled or no longer staff, or the caller's is no longer a student. The thread stays readable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the body is blank once trimmed (`details.body`), or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    markStudentDirectThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getStudentClassThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentClassThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    markStudentClassThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getStudentMessageAttachmentUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description `private, no-store`. */
+                    "Cache-Control": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentUrl"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
         };
     };
     listNotifications: {
