@@ -129,6 +129,7 @@ export const myClass: components["schemas"]["MyClass"] = {
   id: "019535da-0000-7000-8000-000000000001",
   name: "Tiếng Anh giao tiếp - Lớp A",
   description: null,
+  teacherId: "019535da-0000-7000-8000-0000000000aa",
   teacherName: "Cô Thương",
   teacherAvatarUrl: null,
   scheduleLabel: null,

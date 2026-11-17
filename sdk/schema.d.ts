@@ -162,6 +162,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/email-events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend's delivery events (bounces and complaints)
+         * @description The webhook Resend calls (O-R5.2, T-R7.15). It accepts only Resend's
+         *     signed deliveries: the Svix signature in `svix-id`, `svix-timestamp`
+         *     and `svix-signature`, an HMAC-SHA256 over `{id}.{timestamp}.{body}`
+         *     with the decoded `RESEND_WEBHOOK_SECRET`, within five minutes of the
+         *     timestamp. A hard bounce (`email.bounced`) or a complaint
+         *     (`email.complained`) puts the recipient's address on the suppression
+         *     list, and no more mail goes to it; every other event type is accepted
+         *     and ignored. A replayed `svix-id` changes nothing.
+         *
+         *     The three headers are optional in the schema so that a request
+         *     without them is refused by the signature check, `401`, after the
+         *     rate limit has counted it, and not by parameter binding.
+         *
+         *     **Leak review (§6.5).** A body that is not a JSON object, or a header
+         *     over its length, is refused with `400` by request validation before
+         *     the signature is read, as on every operation. Past that, the answer
+         *     is `204` or `401`, both empty, whatever the body says: nothing tells
+         *     a caller whether an address is
+         *     known or already suppressed. A forged request cannot suppress an
+         *     address, because it cannot sign; the address stored is one Quizzivy
+         *     already sent to. The limit is per address: 120 a minute.
+         */
+        post: operations["receiveEmailEvents"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -682,7 +722,14 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description Backs the §8 tests list. Soft-deleted tests are excluded; keyset paginated (§13.8). */
+        /**
+         * @description Backs the §8 tests list. Soft-deleted tests are excluded; keyset paginated (§13.8).
+         *
+         *     Without `include` it lists the caller's own tests, for everyone,
+         *     admins included. `include=shared` adds the tests shared with the
+         *     caller, each with its `access` and `owner`: the assignment wizard's
+         *     test step.
+         */
         get: operations["listTests"];
         put?: never;
         /** @description Creates an empty draft. Content is added through the builder, and nothing is assignable until it is published. */
@@ -845,6 +892,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/tests/{id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a copy of a test the caller can read
+         * @description "Make a copy" (D4): copies the current draft into the caller's
+         *     ownership, with its sections, instructions and the test's own
+         *     groups. Every standalone question becomes a new bank question of the
+         *     caller's, with its options, gaps, match items and rubric, so the copy
+         *     is independent of the original. Versions, assignments and grants are
+         *     not copied. The copy is named as `duplicateTest` names its copies.
+         *     For the owner `duplicateTest` keeps its reference semantics; this
+         *     operation always copies. Audited as `share.copied`.
+         */
+        post: operations["copyTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/tests/{id}/question-copies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Copy questions into the bank of a test's owner
+         * @description "From question bank" for a caller who is not the test's owner: a
+         *     draft holds only questions its test's owner owns, so the builder adds
+         *     copies of the chosen questions, made in the owner's bank with
+         *     `createdBy` the caller. The caller needs edit access to the test and
+         *     read access to each question. The builder then puts the returned ids
+         *     into the outline with its next autosave.
+         */
+        post: operations["copyQuestionsForTest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/tests/{id}/questions/{questionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+                questionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Edit a question in the context of a test
+         * @description How the builder saves a question when the caller is not the test's
+         *     owner (copy-on-write, D4). The question must be a standalone question
+         *     of the test's draft. When anything else uses it, another draft or a
+         *     question set, the edit makes a copy owned by the question's owner
+         *     with `createdBy` the caller, and only this test is pointed at the
+         *     copy (`forked`). Otherwise the question is edited in place. The
+         *     owner's own edits never fork. The test's `updatedAt` moves either
+         *     way. Audited as `question.updated`, and `question.forked` on a fork.
+         */
+        patch: operations["editTestQuestion"];
+        trace?: never;
+    };
     "/teacher/tests/{id}/versions": {
         parameters: {
             query?: never;
@@ -993,10 +1126,26 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description The §8 question bank, with type and tag filters plus search. */
+        /**
+         * @description The §8 question bank, with type and tag filters plus search.
+         *
+         *     With `setId`, the list is that set's questions instead of the
+         *     caller's bank: any set the caller can read, for a caller holding
+         *     `content.questions.write` (the set operations' own permission; anyone
+         *     else gets 404), in set order unless a
+         *     sort is given, each row with the caller's `access` and its `owner`.
+         *     `bankTotal` is then the set's size.
+         */
         get: operations["listQuestions"];
         put?: never;
-        /** @description Adds a question to the bank. Options and blanks are written in the same transaction, with ordinals normalized dense. */
+        /**
+         * @description Adds a question to the bank. Options and blanks are written in the same transaction, with ordinals normalized dense.
+         *
+         *     With `forTestId` the question is made for that test's draft: it
+         *     belongs to the test's owner, with `createdBy` the caller, who needs
+         *     edit access to the test. A draft holds only questions its test's
+         *     owner owns, so this is how a co-editor adds a new question.
+         */
         post: operations["createQuestion"];
         delete?: never;
         options?: never;
@@ -1048,7 +1197,17 @@ export interface paths {
         delete: operations["deleteQuestion"];
         options?: never;
         head?: never;
-        /** @description Edits the bank copy only. Published versions hold their own snapshot and are unaffected (§7). */
+        /**
+         * @description Edits the bank copy only. Published versions hold their own snapshot and are unaffected (§7).
+         *
+         *     The question's owner and `scope.all` edit in place, as before.
+         *     Anyone else edits only in the context of a test or a set they can
+         *     edit: in a test through `editTestQuestion`, in a set with `setId`.
+         *     In a set, when anything other than that set uses the question, the
+         *     edit makes a copy owned by the question's owner, and only that set is
+         *     pointed at it (copy-on-write); the answer is the copy, whose `id`
+         *     differs from the path's.
+         */
         patch: operations["updateQuestion"];
         trace?: never;
     };
@@ -1068,8 +1227,485 @@ export interface paths {
          *     tags into a new bank row that no test references yet. A source whose
          *     media asset has been deleted, or that no longer validates, answers
          *     `VALIDATION_FAILED` as a create would; nothing is copied.
+         *
+         *     With `forTestId` the copy is made in that test's owner's bank, as
+         *     `createQuestion` does with it.
          */
         post: operations["duplicateQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/question-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's own question sets
+         * @description The sets the caller owns, most recently changed first, for the bank's
+         *     Sets group and the bulk bar's "Add to set" (DG-90, interim). Sets
+         *     other teachers shared with the caller are in `listSharedWithMe`. The
+         *     list is not paged: a teacher keeps tens of sets, not thousands.
+         */
+        get: operations["listQuestionSets"];
+        put?: never;
+        /**
+         * Make a question set from the bank's selection
+         * @description Every id must be a standalone question of the caller's bank that is
+         *     not deleted (not a member of a passage or cloze group). The set keeps
+         *     them in the given order. Audited as `question_set.created`.
+         */
+        post: operations["createQuestionSet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/question-sets/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        /** @description A set its owner, a grantee or `scope.all` can read. Its questions are `listQuestions?setId=`. */
+        get: operations["getQuestionSet"];
+        put?: never;
+        post?: never;
+        /**
+         * @description Owner only. Deletes the set and every grant to it in one
+         *     transaction. Its questions stay in the bank, and tests that use them
+         *     are not affected. Audited as `question_set.deleted`.
+         */
+        delete: operations["deleteQuestionSet"];
+        options?: never;
+        head?: never;
+        /** @description Renames the set or changes its description, for its owner or an edit grantee. Audited as `question_set.updated`. */
+        patch: operations["updateQuestionSet"];
+        trace?: never;
+    };
+    "/teacher/question-sets/{id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Add bank questions to a set
+         * @description Owner only (O-R7.4: an edit grantee changes and removes a set's
+         *     questions, but does not add them). Appends in the given order and
+         *     ignores a question the set already holds. A set holds at most 500
+         *     questions. Audited as `question_set.updated`.
+         */
+        post: operations["addQuestionSetItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/question-sets/{id}/items/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Take questions out of a set
+         * @description For the owner or an edit grantee. The questions stay in the bank. An
+         *     id the set does not hold is ignored. Audited as `question_set.updated`.
+         */
+        post: operations["removeQuestionSetItems"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/question-sets/{id}/copy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Make a copy of a set, or of some of its questions
+         * @description For anyone who can read the set. Without `questionIds` it copies the
+         *     whole set into a new set the caller owns, with new questions of the
+         *     caller's own. With `questionIds`, which must be members of the set,
+         *     it copies just those questions into the caller's bank and makes no
+         *     set: "Add to test" from a shared set. A copy is independent: a later
+         *     edit to either side leaves the other unchanged. Audited as
+         *     `share.copied`.
+         */
+        post: operations["copyQuestionSet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/directory/teachers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find colleagues to share with
+         * @description The share dialog's picker. Lists accounts that hold the teaching
+         *     workspace, active or disabled, never the caller, never a student.
+         *     `q` matches the full name, the display name and the email,
+         *     accent-insensitively (`duc` finds `Đức`), best match first. Without
+         *     `q` (the picker just opened) it lists colleagues by name. At most
+         *     `limit` rows.
+         *
+         *     This is not a list of owned resources, so its rows are under
+         *     `teachers`, not `items`: a colleague's name and email reach holders
+         *     of `content.share` by design (the deck draws them), and never a
+         *     student, whom `x-permission` excludes.
+         *
+         *     Limited to 60 a minute per signed-in user.
+         */
+        get: operations["searchTeacherDirectory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/shares": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Who has access to a test or a set
+         * @description The share dialog's "People with access". For the owner and
+         *     `scope.all`. `resourceId` names a test or a question set, as `kind`
+         *     says; the isolation suite runs it once per kind.
+         */
+        get: operations["listShares"];
+        put?: never;
+        /**
+         * Share a test or a set with colleagues
+         * @description For the owner and `scope.all`; a recipient never shares further (D4).
+         *     Grants each recipient that qualifies and skips the others with a
+         *     reason. With `notify`, each new recipient gets `content.shared` in
+         *     app and by email. Audited as `share.granted`, one row per grant.
+         *
+         *     `granteeIds` names no owned resource: any teacher the directory
+         *     returns is a valid recipient, and `skipped` covers the rest.
+         *
+         *     Limited to 30 an hour per signed-in user.
+         */
+        post: operations["createShares"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/shares/{shareId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Stop sharing with one recipient
+         * @description For the owner and `scope.all`. Deletes the grant and nothing else:
+         *     assignments the recipient already made keep their version, and their
+         *     students' results stay in the recipient's classes. Audited as
+         *     `share.revoked`.
+         */
+        delete: operations["deleteShare"];
+        options?: never;
+        head?: never;
+        /**
+         * Change a recipient between Can use and Can edit
+         * @description For the owner and `scope.all`. Audited as `share.changed`.
+         */
+        patch: operations["updateShare"];
+        trace?: never;
+    };
+    "/teacher/shared-with-me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What other teachers shared with the caller
+         * @description Shared with me. Soft-deleted content is left out. `q` matches the
+         *     name and the owner's name, accent-insensitively. Newest grant first.
+         */
+        get: operations["listSharedWithMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/shared-with-me/{shareId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove from my list
+         * @description For the grant's recipient only, who needs no `content.share` to leave.
+         *     Deletes the grant; assignments the caller already made from it keep
+         *     working. Audited as `share.removed`.
+         */
+        delete: operations["removeSharedWithMe"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The staff Messages list
+         * @description Every class channel of a class the caller can read and that is not
+         *     archived, posted in or not, and the caller's direct threads, newest
+         *     activity first (a channel nobody has posted in sorts last, by name).
+         *     A direct thread is readable by its two participants only; `scope.all`
+         *     opens none (D17, DG-08).
+         *
+         *     `q` matches the student's and the class's names, accent-insensitively.
+         *     With `q`, the answer also lists, after the threads, up to 20 students
+         *     the caller may start a thread with and has none with, as
+         *     `candidate` rows.
+         *
+         *     The rows are under `threads`, not `items`: they mix two kinds, and a
+         *     student two teachers teach is rightly in both teachers' lists.
+         */
+        get: operations["listStaffThreads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/students/{studentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The caller's direct thread with a student, empty until the first
+         *     post. `studentId` is a `messaging-peer`: a student the caller has a
+         *     thread with, has taught (now or before), or created. Any other id
+         *     answers 404, an admin's included, and so does the thread of another
+         *     staff member with the same student.
+         */
+        get: operations["getStaffDirectThread"];
+        put?: never;
+        /**
+         * Write to a student
+         * @description The first post makes the thread. A thread that exists stays open to
+         *     both of its participants after the student leaves the caller's
+         *     classes. Writing first needs a tie: the student is, or was, in a
+         *     class of the caller's, or the caller created the account; and the
+         *     student must be enabled and still a student. Not audited (D17).
+         *
+         *     Limited to 30 a minute and 500 a day per staff member.
+         */
+        post: operations["postStaffDirectMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/students/{studentId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a direct thread
+         * @description The pointer only moves forward. `lastReadMessageId` is checked
+         *     against the thread, so it names no resource of its own.
+         */
+        post: operations["markStaffDirectThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/classes/{classId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description A class's announcement channel, for anyone who can read the class
+         *     (its teacher, or `scope.all`). Each post carries `seenBy`.
+         */
+        get: operations["getStaffClassThread"];
+        put?: never;
+        /**
+         * Post an announcement to a class
+         * @description Reaches every active student of the class; replies come back as
+         *     direct messages. An announcement can be neither edited nor deleted.
+         *     Not audited (D17).
+         *
+         *     Limited to 30 a minute and 500 a day per staff member.
+         */
+        post: operations["postClassAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/classes/{classId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a class channel
+         * @description The pointer only moves forward. `lastReadMessageId` is checked
+         *     against the thread, so it names no resource of its own.
+         */
+        post: operations["markStaffClassThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a file to send in a message
+         * @description The file waits, unsent, until a post names it; one left unsent for 24
+         *     hours is removed. The type comes from sniffing the content, never
+         *     from the part's `Content-Type` or the extension: PDF, Word (DOCX or
+         *     DOC), PNG, JPEG, MP3 or M4A. WebP is refused. An image's header must
+         *     declare at most 10000 × 10000 pixels; nothing is decoded further, and
+         *     the file is kept as it came. A Word file is never opened or
+         *     converted on the server, and one that carries macros is refused.
+         *     `filename` is the part's name with any path dropped, at most 200
+         *     characters, and ending in an extension of the sniffed type:
+         *     `report` that holds a PDF is stored as `report.pdf`, and
+         *     `bai-tap.exe` as `bai-tap.exe.pdf`, so a downloaded file opens as
+         *     what it is.
+         *
+         *     Limited to 20 an hour per staff member.
+         */
+        post: operations["uploadMessageAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/attachments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Mint the download URL of a message's file
+         * @description For the participants of the thread whose message holds the file (a
+         *     direct thread's staff member and student, and a class channel's
+         *     readers: staff whose class scope reaches the class, and its
+         *     current members), and its uploader before it is sent. Anyone
+         *     else gets 404, as for a missing id: an admin on a direct
+         *     message's file included, whom `scope.all` does not let into the
+         *     thread. The URL is a credential, so the answer is not stored.
+         */
+        get: operations["getStaffMessageAttachmentUrl"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3439,7 +4075,10 @@ export interface paths {
          * @description Queues one export for the worker and answers at once. It builds a ZIP
          *     of `users.csv` (no password hashes or tokens), `roles.csv`,
          *     `classes.csv` (no join codes), `class_members.csv`, `tests.csv`,
-         *     `test_versions.csv`, `assignments.csv`, `attempts.csv`, with
+         *     `test_versions.csv`, `assignments.csv`, `attempts.csv`, `leads.csv`,
+         *     `messages_summary.csv` (one row per conversation: its kind, class or
+         *     two participants, message count and first and last message times,
+         *     never a message's text, a file's name or an attachment), with
          *     `answers.csv` when `includeAnswers` is true, and a `README.txt` in
          *     Vietnamese and English that describes each file. Every CSV is UTF-8
          *     with a byte-order mark and CRLF line ends, and a cell that a
@@ -4622,6 +5261,162 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/app/messages/threads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The student's Messages list
+         * @description The student's direct threads, and the channels of the classes they
+         *     are in, not archived, that have at least one post, newest first. An
+         *     archived class's channel stays readable by its members
+         *     (`getStudentClassThread`) and is not listed.
+         */
+        get: operations["listStudentThreads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/teachers/{teacherId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The student's thread with a teacher: one who teaches a class the
+         *     student is in that is not archived, or one they already have a
+         *     thread with. `teacherId`
+         *     is a user id whose eligibility the operation checks (not an owned
+         *     resource); any other id answers 404.
+         */
+        get: operations["getStudentDirectThread"];
+        put?: never;
+        /**
+         * Write to a teacher
+         * @description Text only. A student may write first to the teacher of a class they
+         *     are in that is not archived, and goes on writing in a thread that
+         *     exists after leaving the class or after the class is archived; they
+         *     cannot write first to a teacher of a class they left, or of a class
+         *     that is archived.
+         *
+         *     Limited to 10 a minute and 200 a day per student.
+         */
+        post: operations["postStudentDirectMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/teachers/{teacherId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a direct thread
+         * @description The pointer only moves forward. `lastReadMessageId` is checked
+         *     against the thread, so it names no resource of its own.
+         */
+        post: operations["markStudentDirectThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/classes/{classId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * @description The announcements of a class the student is in, archived or not.
+         *     Read-only: there is no post operation on this path, so a `POST`
+         *     answers 405, and the channel's post operation,
+         *     `postClassAnnouncement`, answers a student 403.
+         */
+        get: operations["getStudentClassThread"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/classes/{classId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a class channel
+         * @description The pointer only moves forward. `lastReadMessageId` is checked
+         *     against the thread, so it names no resource of its own.
+         */
+        post: operations["markStudentClassThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/app/messages/attachments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Mint the download URL of a message's file
+         * @description For the participants of the thread whose message holds the file (a
+         *     direct thread's staff member and student, and a class channel's
+         *     readers: staff whose class scope reaches the class, and its
+         *     current members), and its uploader before it is sent. Anyone
+         *     else gets 404, as for a missing id: an admin on a direct
+         *     message's file included, whom `scope.all` does not let into the
+         *     thread. The URL is a credential, so the answer is not stored.
+         */
+        get: operations["getStudentMessageAttachmentUrl"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/me/notifications": {
         parameters: {
             query?: never;
@@ -5111,8 +5906,9 @@ export interface components {
         /**
          * @description What a limit is when nothing is stored. `value` is `null` for no limit.
          *     `source` says where it comes from: `r2_free` (Cloudflare R2's free tier,
-         *     10 GB), `neon_launch` (the warning line chosen for Neon's Launch plan,
-         *     which has no cap), `resend_free` (Resend's free plan, 100 a day and
+         *     10 GB), `vps_disk` (the warning line chosen for the database on the
+         *     server's 50 GB disk, which also holds the monthly restore drill's copy
+         *     beside it), `resend_free` (Resend's free plan, 100 a day and
          *     3,000 a month), `deploy` (a deploy variable that overrides the plan),
          *     `app` (the app's own figure) or `none`.
          */
@@ -5120,7 +5916,7 @@ export interface components {
             /** Format: int64 */
             value: number | null;
             /** @enum {string} */
-            source: "none" | "app" | "deploy" | "r2_free" | "neon_launch" | "resend_free";
+            source: "none" | "app" | "deploy" | "r2_free" | "vps_disk" | "resend_free";
         };
         /** @description Each limit's default, under the same names as `UsageLimits`. */
         UsageLimitDefaults: {
@@ -5363,7 +6159,7 @@ export interface components {
          *     be sent again.
          * @enum {string}
          */
-        ErrorCode: "INVALID_CREDENTIALS" | "ACCOUNT_NOT_PROVISIONED" | "ACCOUNT_DISABLED" | "EMAIL_NOT_VERIFIED" | "PASSWORD_REQUIRED" | "PASSWORD_UNCHANGED" | "IDENTITY_ALREADY_LINKED" | "LAST_LOGIN_METHOD" | "SET_PASSWORD_LINK_INVALID" | "REFRESH_TOKEN_INVALID" | "REFRESH_TOKEN_REUSED" | "SESSION_IS_CURRENT" | "JOIN_CODE_INVALID" | "JOIN_CODE_EXPIRED" | "JOIN_CODE_EXHAUSTED" | "JOIN_CODE_REVOKED" | "CLASS_ARCHIVED" | "EMAIL_TAKEN" | "STUDENT_SHARED" | "ROLE_NAME_TAKEN" | "ROLE_LIMIT_REACHED" | "ROLE_NOT_ASSIGNABLE" | "SEAT_LIMIT" | "TEACHER_LIMIT" | "STORAGE_LIMIT" | "ROLE_LOCKED" | "STUDENT_NEEDS_TAKE_TESTS" | "KEY_NOT_GRANTABLE" | "CANNOT_ACT_ON_SELF" | "TARGET_ROLE_NOT_ALLOWED" | "LAST_ADMIN" | "USER_OWNS_CONTENT" | "USER_NOT_DISABLED" | "INVALID_RECIPIENT" | "RESOURCE_REFERENCED" | "RESOURCE_NOT_ARCHIVED" | "VERSION_IS_CURRENT" | "TEST_NOT_PUBLISHED" | "TEST_ARCHIVED" | "GROUP_OUTLINE_REQUIRED" | "GROUP_CONFLICT" | "PUBLISH_VALIDATION_FAILED" | "STALE_WRITE" | "PLAY_ID_CONFLICT" | "QUESTION_REFERENCED" | "MEDIA_REFERENCED" | "MEDIA_TYPE_UNSUPPORTED" | "MEDIA_TOO_LARGE" | "MEDIA_TOO_LONG" | "MEDIA_UNREADABLE" | "MEDIA_KIND_MISMATCH" | "MEDIA_QUOTA_EXCEEDED" | "IMAGE_DIMENSIONS" | "IMPORT_CONFLICT" | "IMPORT_QUOTA_EXCEEDED" | "IMPORT_BUSY" | "IMPORT_SOURCE_INVALID" | "IMPORT_SOURCE_TOO_LARGE" | "IMPORT_SOURCE_UNSUPPORTED" | "IMPORT_NOT_READY" | "IMPORT_NOT_PROCESSED" | "IMPORT_PROCESSING_UNAVAILABLE" | "IMPORT_FILES_REMOVED" | "ASSIGNMENT_NOT_OPEN" | "ASSIGNMENT_NOT_CLOSED" | "ASSIGNMENT_CLOSED" | "ATTEMPT_LIMIT_REACHED" | "ATTEMPT_CLOSED" | "ATTEMPT_IN_PROGRESS" | "ATTEMPT_VOIDED" | "SESSION_SUPERSEDED" | "DEADLINE_PASSED" | "DEADLINE_NOT_REACHED" | "GRADING_INCOMPLETE" | "ANSWER_REMOVED" | "GRADE_NEEDS_BAND" | "GRADE_CRITERIA_INCOMPLETE" | "GRADE_NEEDS_POINTS" | "GRADE_BAND_NOT_ALLOWED" | "VERSION_LOCKED" | "ASSIGNMENT_LOCKED" | "AI_OFF" | "AI_PAUSED" | "AI_READ_OFF" | "AI_CREDITS_EXHAUSTED" | "AI_UNAVAILABLE" | "AI_REQUESTS_OFF" | "AI_REQUEST_PENDING" | "AI_REQUEST_DECIDED" | "AI_REQUEST_EXPIRED" | "AI_ALLOWANCE_BELOW_USE" | "EXPORT_TOO_LARGE" | "EXPORT_IN_PROGRESS" | "EXPORT_UNAVAILABLE" | "EXPORT_OFF" | "USER_IMPORT_FILE_TOO_LARGE" | "USER_IMPORT_FILE_UNREADABLE" | "USER_IMPORT_FILE_EMPTY" | "USER_IMPORT_TOO_MANY_ROWS" | "USER_IMPORT_COLUMNS" | "USER_IMPORT_NOTHING_TO_CREATE" | "SHEET_UNAVAILABLE" | "CSV_NOT_UTF8" | "XLSX_MACROS" | "XLSX_ENCRYPTED" | "SIGN_IN_POLICY_LOCKOUT" | "PASSWORD_SIGN_IN_DISABLED" | "GOOGLE_SIGN_IN_DISABLED" | "GOOGLE_DOMAIN_NOT_ALLOWED" | "MAINTENANCE" | "MAINTENANCE_SCHEDULED" | "VALIDATION_FAILED" | "REQUEST_INCOMPLETE" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "UNAUTHORIZED" | "FORBIDDEN" | "PASSWORD_CHANGE_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
+        ErrorCode: "INVALID_CREDENTIALS" | "ACCOUNT_NOT_PROVISIONED" | "ACCOUNT_DISABLED" | "EMAIL_NOT_VERIFIED" | "PASSWORD_REQUIRED" | "PASSWORD_UNCHANGED" | "IDENTITY_ALREADY_LINKED" | "LAST_LOGIN_METHOD" | "SET_PASSWORD_LINK_INVALID" | "REFRESH_TOKEN_INVALID" | "REFRESH_TOKEN_REUSED" | "SESSION_IS_CURRENT" | "JOIN_CODE_INVALID" | "JOIN_CODE_EXPIRED" | "JOIN_CODE_EXHAUSTED" | "JOIN_CODE_REVOKED" | "CLASS_ARCHIVED" | "EMAIL_TAKEN" | "STUDENT_SHARED" | "ROLE_NAME_TAKEN" | "ROLE_LIMIT_REACHED" | "ROLE_NOT_ASSIGNABLE" | "SEAT_LIMIT" | "TEACHER_LIMIT" | "STORAGE_LIMIT" | "ROLE_LOCKED" | "STUDENT_NEEDS_TAKE_TESTS" | "KEY_NOT_GRANTABLE" | "CANNOT_ACT_ON_SELF" | "TARGET_ROLE_NOT_ALLOWED" | "LAST_ADMIN" | "USER_OWNS_CONTENT" | "USER_NOT_DISABLED" | "INVALID_RECIPIENT" | "RESOURCE_REFERENCED" | "RESOURCE_NOT_ARCHIVED" | "VERSION_IS_CURRENT" | "TEST_NOT_PUBLISHED" | "TEST_ARCHIVED" | "GROUP_OUTLINE_REQUIRED" | "GROUP_CONFLICT" | "PUBLISH_VALIDATION_FAILED" | "STALE_WRITE" | "PLAY_ID_CONFLICT" | "QUESTION_REFERENCED" | "MEDIA_REFERENCED" | "MEDIA_TYPE_UNSUPPORTED" | "MEDIA_TOO_LARGE" | "MEDIA_TOO_LONG" | "MEDIA_UNREADABLE" | "MEDIA_KIND_MISMATCH" | "MEDIA_QUOTA_EXCEEDED" | "IMAGE_DIMENSIONS" | "SHARE_OWNER_ONLY" | "SHARE_READ_ONLY" | "EDIT_CONTEXT_REQUIRED" | "MEDIA_IN_USE_ELSEWHERE" | "MESSAGING_NOT_ALLOWED" | "ATTACHMENT_HAS_MACROS" | "IMPORT_CONFLICT" | "IMPORT_QUOTA_EXCEEDED" | "IMPORT_BUSY" | "IMPORT_SOURCE_INVALID" | "IMPORT_SOURCE_TOO_LARGE" | "IMPORT_SOURCE_UNSUPPORTED" | "IMPORT_NOT_READY" | "IMPORT_NOT_PROCESSED" | "IMPORT_PROCESSING_UNAVAILABLE" | "IMPORT_FILES_REMOVED" | "ASSIGNMENT_NOT_OPEN" | "ASSIGNMENT_NOT_CLOSED" | "ASSIGNMENT_CLOSED" | "ATTEMPT_LIMIT_REACHED" | "ATTEMPT_CLOSED" | "ATTEMPT_IN_PROGRESS" | "ATTEMPT_VOIDED" | "SESSION_SUPERSEDED" | "DEADLINE_PASSED" | "DEADLINE_NOT_REACHED" | "GRADING_INCOMPLETE" | "ANSWER_REMOVED" | "GRADE_NEEDS_BAND" | "GRADE_CRITERIA_INCOMPLETE" | "GRADE_NEEDS_POINTS" | "GRADE_BAND_NOT_ALLOWED" | "VERSION_LOCKED" | "ASSIGNMENT_LOCKED" | "AI_OFF" | "AI_PAUSED" | "AI_READ_OFF" | "AI_CREDITS_EXHAUSTED" | "AI_UNAVAILABLE" | "AI_REQUESTS_OFF" | "AI_REQUEST_PENDING" | "AI_REQUEST_DECIDED" | "AI_REQUEST_EXPIRED" | "AI_ALLOWANCE_BELOW_USE" | "EXPORT_TOO_LARGE" | "EXPORT_IN_PROGRESS" | "EXPORT_UNAVAILABLE" | "EXPORT_OFF" | "USER_IMPORT_FILE_TOO_LARGE" | "USER_IMPORT_FILE_UNREADABLE" | "USER_IMPORT_FILE_EMPTY" | "USER_IMPORT_TOO_MANY_ROWS" | "USER_IMPORT_COLUMNS" | "USER_IMPORT_NOTHING_TO_CREATE" | "SHEET_UNAVAILABLE" | "CSV_NOT_UTF8" | "XLSX_MACROS" | "XLSX_ENCRYPTED" | "SIGN_IN_POLICY_LOCKOUT" | "PASSWORD_SIGN_IN_DISABLED" | "GOOGLE_SIGN_IN_DISABLED" | "GOOGLE_DOMAIN_NOT_ALLOWED" | "MAINTENANCE" | "MAINTENANCE_SCHEDULED" | "VALIDATION_FAILED" | "REQUEST_INCOMPLETE" | "NOT_FOUND" | "METHOD_NOT_ALLOWED" | "UNAUTHORIZED" | "FORBIDDEN" | "PASSWORD_CHANGE_REQUIRED" | "RATE_LIMITED" | "INTERNAL";
         /**
          * @description Extracted so a response carrying the envelope AND something else can
          *     reference it without composing over a closed schema (issue #41).
@@ -6264,12 +7060,13 @@ export interface components {
         /**
          * @description What still references a row whose permanent delete answered
          *     `RESOURCE_REFERENCED`, carried as `details.referencedBy` by
-         *     `deleteClass` and `deleteUser`. `other` is a reference the server does
-         *     not name. Later releases add values; a client treats an unknown one as
-         *     `other`.
+         *     `deleteClass` and `deleteUser`. `messages` is a class channel with posts,
+         *     or an account's messages, threads or files. `other` is a reference the
+         *     server does not name. Later releases add values; a client treats an
+         *     unknown one as `other`.
          * @enum {string}
          */
-        ReferencedBy: "assignments" | "attempts" | "audit" | "members" | "owned_content" | "other";
+        ReferencedBy: "assignments" | "attempts" | "audit" | "members" | "messages" | "owned_content" | "other";
         MediaReplacementCounts: {
             questions: number;
             groups: number;
@@ -6559,6 +7356,14 @@ export interface components {
          *     rejects the very body it documents (see issue #41).
          */
         StudentRow: {
+            /**
+             * @description The caller may open a direct thread with this student and post in
+             *     it (`postStaffDirectMessage` would be accepted): an existing thread,
+             *     or a tie (a class of the caller's, now or before, or an account the
+             *     caller created), with the account enabled and still a student.
+             *     `scope.all` does not widen it. The row menu's "Send message" reads it.
+             */
+            canMessage: boolean;
             id: components["schemas"]["Uuid"];
             /** Format: email */
             email: string;
@@ -6772,14 +7577,17 @@ export interface components {
         UserContentTransferResult: {
             /**
              * @description What changed owner, counted as `ownedContent` counts it: every
-             *     class, and every test, question, question group and media asset
-             *     not deleted, and every assignment. Deleted rows move too, uncounted.
+             *     class, and every test, question, question group, question set and
+             *     media asset not deleted, and every assignment. Deleted rows move
+             *     too, uncounted. Grants to the moved tests and sets move with them;
+             *     a grant to the recipient, who now owns the content, is deleted.
              */
             moved: {
                 classes: number;
                 tests: number;
                 questions: number;
                 questionGroups: number;
+                questionSets: number;
                 media: number;
                 assignments: number;
             };
@@ -7155,6 +7963,8 @@ export interface components {
             notify: boolean;
         };
         ClassMember: {
+            /** @description As `StudentRow.canMessage`, for the caller and this member. Another teacher's class read through `scope.all` answers false for its students the caller never taught. */
+            canMessage: boolean;
             userId: components["schemas"]["Uuid"];
             /** @description The same figures G-07 shows, so G-06's roster carries "Bài đã nộp" and "Điểm TB". */
             stats: components["schemas"]["StudentStats"];
@@ -7183,6 +7993,11 @@ export interface components {
             id: components["schemas"]["Uuid"];
             name: string;
             description: string | null;
+            /**
+             * Format: uuid
+             * @description The class's own teacher, so the class card can open their thread (`getStudentDirectThread`).
+             */
+            teacherId: string | null;
             /** @description The display name of the class's own teacher. */
             teacherName: string | null;
             /** @description The teacher's profile photo, a presigned GET valid 24 hours; `null` when the teacher has none or no store is configured. */
@@ -7799,7 +8614,8 @@ export interface components {
          *     which `importBytes` bounds. `email` counts what was sent today and this
          *     month in `APP_TIMEZONE`, and `held` the messages a cap moved to a
          *     later day or month. `database.bytes` is PostgreSQL's
-         *     `pg_database_size`, which approximates and is not what Neon bills.
+         *     `pg_database_size`, which approximates the files the database takes
+         *     on the server's disk.
          *     `attemptsKept` has no limit.
          */
         Usage: {
@@ -7972,6 +8788,16 @@ export interface components {
             /** @description Current test outlines using the question, sorted by title. Included on individual question responses; loaded on demand for the bank's nested usage table. Published snapshots are excluded. */
             usedIn?: components["schemas"]["ReferencingTest"][];
             createdAt: components["schemas"]["Timestamp"];
+            /**
+             * @description What the caller may do with the question: `owner` for its owner
+             *     and `scope.all`, `edit` when a test or a set the caller can edit
+             *     holds it, `use` when only one the caller can read does. Present on
+             *     the question bank's operations; absent where a grading page
+             *     carries a question.
+             */
+            access?: components["schemas"]["ContentAccess"];
+            /** @description The question's owner. Present wherever `access` is. */
+            owner?: components["schemas"]["PersonRef"];
             updatedAt: components["schemas"]["Timestamp"];
         };
         /** @description No `isCorrect`. Deliberately not a subset-by-omission of AdminQuestionOption. */
@@ -8452,6 +9278,12 @@ export interface components {
             unpublishedChanges: number | null;
             /** @description The **draft** outline. Published content lives in versions. */
             sections: components["schemas"]["TestSection"][];
+            /** @description What the caller may do with the test. A recipient sees the draft and every version, as the owner does. */
+            access: components["schemas"]["ContentAccess"];
+            /** @description The test's owner. A client tells its own tests from `owner.id`. */
+            owner: components["schemas"]["PersonRef"];
+            /** @description Teachers holding a grant to the test, for the card's "Shared · {n}"; 0 for a caller who is not its owner and holds no `scope.all`. */
+            sharedWith: number;
             createdAt: components["schemas"]["Timestamp"];
             updatedAt: components["schemas"]["Timestamp"];
             /** Format: date-time */
@@ -9144,6 +9976,10 @@ export interface components {
             answersToGrade: number | null;
             /** @description The caller's own unread notifications. */
             unreadNotifications: number;
+            /** @description Live grants to the caller, the muted count beside "Shared with me". */
+            sharedWithMe: number;
+            /** @description Messages past the caller's read pointers, not counting their own, over their threads. The nav shows "99+" above 99. */
+            unreadMessages: number;
         };
         ClosingAssignment: {
             id: components["schemas"]["Uuid"];
@@ -9719,6 +10555,18 @@ export interface components {
          *     | `ai.credit_request.decided` | a teacher | `credits`, `decision` |
          *     | `content.transferred` | a teacher | `teacherName`, `count` |
          *     | `class.teacher_changed` | a teacher | `className`, and `teacherName` for the class's previous teacher |
+         *     | `content.shared` | a teacher | `sharerName`, `contentKind`, `name`, `access`, and `message` when the sharer wrote one |
+         *     | `test.published_by_collaborator` | a teacher | `editorName`, `title`, `version` |
+         *     | `message.received` | a teacher | `senderName`, `count`, `excerpt` |
+         *     | `message.from_teacher` | a student | `senderName`, `count`, `excerpt`, and `className` for an announcement |
+         *     | `summary.weekly` | a teacher | `count`, `toGrade`, `flagged`, `classNames` |
+         *
+         *     A message item is one per reader per thread: it is written again,
+         *     unread, with the new `count` while the thread stays unread, and marked
+         *     read when the reader's pointer passes it. Each write gives it a new
+         *     `id` and `createdAt`, so it lists first, and once it was read its
+         *     `count` starts again from the next message. `excerpt` is the newest
+         *     message's first 80 characters; it lives only in the reader's own bell.
          *
          *     The three `ai.*` kinds are for the teacher's bell. `ai.credit_request`
          *     is written for every holder of `ai.credits.manage`, who reads it in the
@@ -9729,7 +10577,7 @@ export interface components {
          *     the kind stays so that the notifications it wrote still read.
          * @enum {string}
          */
-        NotificationKind: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "class.joined" | "join_codes.rotated" | "assignment.opened" | "assignment.due_soon" | "assignment.extended" | "result.ready" | "ai.allowance_warning" | "ai.credit_request" | "ai.credit_request.decided" | "content.transferred" | "class.teacher_changed";
+        NotificationKind: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "class.joined" | "join_codes.rotated" | "assignment.opened" | "assignment.due_soon" | "assignment.extended" | "result.ready" | "ai.allowance_warning" | "ai.credit_request" | "ai.credit_request.decided" | "content.transferred" | "class.teacher_changed" | "content.shared" | "test.published_by_collaborator" | "message.received" | "message.from_teacher" | "summary.weekly";
         /**
          * @description The console that reads a notification, and so which of the caller's
          *     notifications a bell counts, lists and clears. Which kinds each one
@@ -9746,13 +10594,27 @@ export interface components {
         /**
          * @description One switch of the notification settings. `attempt.submitted`,
          *     `attempt.flagged` and `assignment.closing` are the teacher's;
-         *     `assignment.due_soon` and `result.ready` the student's. A switch
-         *     governs the kind of the same name, and `assignment.due_soon` also
-         *     governs `assignment.opened` and `assignment.extended`. `class.joined`
-         *     `join_codes.rotated` and `class.teacher_changed` have no switch.
+         *     `assignment.due_soon` and `result.ready` the student's;
+         *     `message.received` both ("New message" for a teacher, "Messages from
+         *     teachers" for a student). A switch governs the kind of the same name,
+         *     `assignment.due_soon` also governs `assignment.opened` and
+         *     `assignment.extended`, and `message.received` also governs
+         *     `message.from_teacher`. `summary.weekly` is the teacher's Monday
+         *     summary, by email and, when its in-app switch is on, in the bell.
+         *
+         *     Each switch covers both channels for a student (DG-82): a student's
+         *     `inApp` and `email` are always equal. A teacher's two columns are
+         *     separate, with the deck's defaults: in app on and email off for
+         *     `attempt.submitted` and `assignment.closing`, both on for
+         *     `attempt.flagged` and `message.received`, in app off and email on
+         *     for `summary.weekly`. `class.joined`
+         *     `join_codes.rotated`, `class.teacher_changed`, `content.shared` and
+         *     `test.published_by_collaborator` have no switch: the sharer's "Send a
+         *     notification" decides the first, and the owner always hears of the
+         *     second.
          * @enum {string}
          */
-        NotificationEvent: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "assignment.due_soon" | "result.ready";
+        NotificationEvent: "attempt.submitted" | "attempt.flagged" | "assignment.closing" | "assignment.due_soon" | "result.ready" | "message.received" | "summary.weekly";
         /**
          * @description What the client builds a notification's sentence from. One closed set
          *     of fields for every kind; `NotificationKind` says which of them a kind
@@ -9762,7 +10624,7 @@ export interface components {
         NotificationParams: {
             /** @description The title of the test the assignment gives. */
             title?: string;
-            /** @description Papers handed in (`attempt.submitted`), classes whose pre-v0.8.0 join code was replaced at start-up (`join_codes.rotated`, no longer written), or classes, tests, questions, question groups, media and assignments given to the reader (`content.transferred`). */
+            /** @description Papers handed in (`attempt.submitted`, and last week's on the teacher's classes for `summary.weekly`), classes whose pre-v0.8.0 join code was replaced at start-up (`join_codes.rotated`, no longer written), or classes, tests, questions, question groups, media and assignments given to the reader (`content.transferred`). */
             count?: number;
             /** @description Of the papers handed in, those with an answer waiting for a mark. */
             toGrade?: number;
@@ -9772,7 +10634,7 @@ export interface components {
             notSubmitted?: number;
             studentName?: string;
             className?: string;
-            /** @description At most five names; `count` holds how many classes there are. */
+            /** @description At most five names. For `join_codes.rotated`, `count` holds how many classes there are; for `summary.weekly`, they are the classes the week's figures cover. */
             classNames?: string[];
             closesAt?: components["schemas"]["Timestamp"];
             /** @description AI credits the teacher has used this month. */
@@ -9788,23 +10650,51 @@ export interface components {
              * @enum {string}
              */
             decision?: "approved" | "declined";
+            /** @description The teacher who shared (`content.shared`). */
+            sharerName?: string;
+            contentKind?: components["schemas"]["ShareKind"];
+            /** @description The shared test's title or set's name (`content.shared`). */
+            name?: string;
+            access?: components["schemas"]["ShareAccess"];
+            /** @description The sharer's own words, as they wrote them (`content.shared`). */
+            message?: string;
+            /** @description The co-editor who published (`test.published_by_collaborator`). */
+            editorName?: string;
+            /** @description The version a co-editor published. */
+            version?: number;
+            /** @description Who wrote the newest message (`message.*`). */
+            senderName?: string;
+            /** @description The newest message's first 80 characters, or its file's name (`message.*`). */
+            excerpt?: string;
+            /** @description Attempts flagged last week (`summary.weekly`). */
+            flagged?: number;
         };
         /**
          * @description Where a click on the notification goes: a page the client resolves from
          *     `route`, never a URL. `assignmentId` is present for `assignment` and
-         *     `studentAssignment`, and `attemptId` for `attempt` and `result`; either
-         *     may accompany any other route.
+         *     `studentAssignment`, `attemptId` for `attempt` and `result`, and
+         *     `testId` for `test`; any of them may accompany any other route.
          */
         NotificationTarget: {
             /**
-             * @description `assignment`, `attempt`, `grading` and `classes` are pages of the
-             *     teaching workspace; `result` and `studentAssignment` are the
-             *     student's result and the student's page of an assignment.
+             * @description `assignment`, `attempt`, `grading`, `classes`, `sharedWithMe`,
+             *     `test`, `messages` and `dashboard` are pages of the teaching workspace;
+             *     `result`, `studentAssignment` and `studentMessages` are the
+             *     student's result, the student's page of an assignment and the
+             *     student's Messages.
              * @enum {string}
              */
-            route: "assignment" | "attempt" | "grading" | "classes" | "result" | "studentAssignment";
+            route: "assignment" | "attempt" | "grading" | "classes" | "result" | "studentAssignment" | "sharedWithMe" | "test" | "messages" | "studentMessages" | "dashboard";
             assignmentId?: components["schemas"]["Uuid"];
             attemptId?: components["schemas"]["Uuid"];
+            /** @description Present for `test`. */
+            testId?: components["schemas"]["Uuid"];
+            /** @description `messages`: the direct thread with this student. */
+            studentId?: components["schemas"]["Uuid"];
+            /** @description `studentMessages`: the direct thread with this teacher. */
+            teacherId?: components["schemas"]["Uuid"];
+            /** @description `studentMessages`: the channel of this class. */
+            classId?: components["schemas"]["Uuid"];
         };
         Notification: {
             id: components["schemas"]["Uuid"];
@@ -9825,7 +10715,12 @@ export interface components {
             event: components["schemas"]["NotificationEvent"];
             /** @description While false, no notification this switch governs is written for the caller. */
             inApp: boolean;
-            /** @description Stored and returned. Nothing is sent by email yet. */
+            /**
+             * @description While false, no email this switch governs is sent to the caller.
+             *     A student's write stores it equal to `inApp`, whatever it says
+             *     (DG-82). An email never carries a message's body, a join code, a
+             *     password or a score the review policy does not yet show.
+             */
             email: boolean;
         };
         /** @description Every `NotificationEvent` once. The server answers them in the enum's order. */
@@ -9833,6 +10728,432 @@ export interface components {
         /** @description What the caller's shell shows before any page is open. */
         MySummary: {
             unreadNotifications: number;
+            /** @description A student's unread messages over their threads (the top bar's Messages button); 0 for staff, whose count is `TeacherSummary.unreadMessages`. */
+            unreadMessages: number;
+        };
+        /**
+         * @description A file a staff member attached (D17): PDF, Word (DOCX or DOC), PNG,
+         *     JPEG, MP3 or M4A, at most 20 MiB, typed by sniffing its content. It is
+         *     fetched through a five-minute signed URL that downloads it under
+         *     `filename`.
+         */
+        MessageAttachment: {
+            id: components["schemas"]["Uuid"];
+            filename: string;
+            bytes: number;
+            /** @enum {string} */
+            mimeType: "application/pdf" | "application/vnd.openxmlformats-officedocument.wordprocessingml.document" | "application/msword" | "image/png" | "image/jpeg" | "audio/mpeg" | "audio/mp4";
+        };
+        AttachmentUrl: {
+            /** @description A presigned GET valid five minutes that downloads the file as an attachment under its filename, with its sniffed type. */
+            url: string;
+            expiresAt: components["schemas"]["Timestamp"];
+        };
+        /**
+         * @description The newest message of a thread, as a row of the list shows it. The
+         *     client words "Attachment · {filename}" from `attachmentName` when
+         *     `text` is null.
+         */
+        MessagePreview: {
+            /** @description The body's first 120 characters, on one line. */
+            text: string | null;
+            attachmentName: string | null;
+            /** @description The caller sent it. */
+            mine: boolean;
+        };
+        /** @description Which thread a row opens. A class channel names its class, a direct thread its student. */
+        StaffThreadRef: {
+            /** @enum {string} */
+            kind: "class" | "direct";
+            /** Format: uuid */
+            classId: string | null;
+            /** Format: uuid */
+            studentId: string | null;
+        };
+        /**
+         * @description A row of the staff Messages list. A class row's `title` is the class's
+         *     name and `studentCount` its active students. A direct row's `title` is
+         *     the student's name and `classNames` the caller's classes the student
+         *     is in: empty, with `former`, when the student was in one of the
+         *     caller's classes and is in none now ("Former student"). A `candidate`
+         *     is a student the caller may write to and has no thread with yet,
+         *     listed only for a search: nothing exists until the first post.
+         */
+        StaffThread: {
+            thread: components["schemas"]["StaffThreadRef"];
+            title: string;
+            /** @description A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none. */
+            avatarUrl: string | null;
+            classNames: string[];
+            /** @description A class row's active students; `null` on a direct row. */
+            studentCount: number | null;
+            former: boolean;
+            candidate: boolean;
+            /** @description A direct row's student account is disabled. */
+            disabled: boolean;
+            /**
+             * Format: date-time
+             * @description `null` for a class channel nobody has posted in, and for a candidate.
+             */
+            lastMessageAt: string | null;
+            preview: components["schemas"]["MessagePreview"] | null;
+            /** @description Messages past the caller's read pointer, not counting their own. */
+            unread: number;
+        };
+        MessageSender: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+        };
+        StaffMessageSender: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            /** @enum {string} */
+            side: "staff" | "student";
+        };
+        /** @description An announcement's "Seen by {seen} of {of}": `of` counts the class's active students now, and `seen` those whose read pointer has passed the post. */
+        SeenBy: {
+            seen: number;
+            of: number;
+        };
+        /** @description A message as staff read it. Messages are never edited or deleted. */
+        StaffMessage: {
+            id: components["schemas"]["Uuid"];
+            sender: components["schemas"]["StaffMessageSender"];
+            /** @description Plain text. A client renders it as text and links http(s) addresses; never HTML. */
+            body: string | null;
+            attachment: components["schemas"]["MessageAttachment"] | null;
+            createdAt: components["schemas"]["Timestamp"];
+            mine: boolean;
+            /** @description Present on a class channel's posts only. */
+            seenBy?: components["schemas"]["SeenBy"];
+        };
+        /**
+         * @description A message as a student reads it: its own schema, never a projection
+         *     of `StaffMessage` (D17, DG-91). It carries no read receipts, no member
+         *     count and no attempt events.
+         */
+        StudentMessage: {
+            id: components["schemas"]["Uuid"];
+            sender: components["schemas"]["MessageSender"];
+            body: string | null;
+            attachment: components["schemas"]["MessageAttachment"] | null;
+            createdAt: components["schemas"]["Timestamp"];
+            mine: boolean;
+        };
+        /**
+         * @description A flagged attempt of the thread's student on an assignment the reader
+         *     can read, shown in the stream as a card at `at`. Computed when the
+         *     thread is read, never stored as a message, and never unread.
+         */
+        ContextEvent: {
+            attemptId: components["schemas"]["Uuid"];
+            assignmentId: components["schemas"]["Uuid"];
+            /** @description The test's title. */
+            title: string;
+            focusLost: number;
+            at: components["schemas"]["Timestamp"];
+        };
+        StaffDirectThreadPeer: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            /** @description The caller's classes the student is in now, for Details. */
+            classes: components["schemas"]["PersonRef"][];
+            /** @description The student was in a class of the caller's and is in none now. */
+            former: boolean;
+            disabled: boolean;
+            /** @description A post would be accepted. False when the account is disabled or no longer a student; the composer then gives way to a sentence. */
+            canPost: boolean;
+        };
+        StaffDirectThread: {
+            student: components["schemas"]["StaffDirectThreadPeer"];
+            /** @description Oldest first. */
+            messages: components["schemas"]["StaffMessage"][];
+            /** @description The student's flagged attempts from 24 hours before the thread's first message, oldest first. Empty while the thread has no message. */
+            contextEvents: components["schemas"]["ContextEvent"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
+        };
+        StaffClassThreadClass: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            /** @description An archived class's channel stays readable and takes no post. */
+            archived: boolean;
+            /** @description Active students, "Sent to all {n} students". */
+            studentCount: number;
+        };
+        StaffClassThread: {
+            class: components["schemas"]["StaffClassThreadClass"];
+            /** @description Oldest first, each with `seenBy`. */
+            messages: components["schemas"]["StaffMessage"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
+        };
+        /** @description A message is text, a file, or both; one of the two is required. */
+        StaffMessagePost: {
+            /** @description Made by the client for this message. Sending it again returns the message it made, so a retried send never posts twice. */
+            clientId: components["schemas"]["Uuid"];
+            /** @description Trimmed; empty is none. */
+            body?: string | null;
+            /**
+             * Format: uuid
+             * @description A file the caller uploaded with `uploadMessageAttachment` and has not sent.
+             */
+            attachmentId?: string | null;
+        };
+        StudentMessagePost: {
+            clientId: components["schemas"]["Uuid"];
+            /** @description Trimmed. Students send text only. */
+            body: string;
+        };
+        MessageReadPointer: {
+            /** @description The newest message on the reader's screen. The pointer only moves forward; an older id is a no-op. */
+            lastReadMessageId: components["schemas"]["Uuid"];
+        };
+        StudentThreadRef: {
+            /** @enum {string} */
+            kind: "class" | "direct";
+            /** Format: uuid */
+            classId: string | null;
+            /** Format: uuid */
+            teacherId: string | null;
+        };
+        /**
+         * @description A row of the student's Messages. A direct row's `title` is the
+         *     teacher's name and `classNames` the student's classes they teach that
+         *     are not archived ("Your teacher · {classes}"). It is empty with
+         *     `former` when the teacher taught the student and teaches them in no
+         *     such class now, having left them all or seen them archived ("Former
+         *     teacher"). It is empty without `former` when the staff member never
+         *     taught the student (one who created the student's account and wrote
+         *     first): the subtitle is then "Your teacher" alone, with no " · " and
+         *     nothing after it. A class row is a channel with at least one post
+         *     ("Class announcements"), titled with the class's name.
+         */
+        StudentThread: {
+            thread: components["schemas"]["StudentThreadRef"];
+            title: string;
+            avatarUrl: string | null;
+            classNames: string[];
+            former: boolean;
+            /** Format: date-time */
+            lastMessageAt: string | null;
+            preview: components["schemas"]["MessagePreview"] | null;
+            unread: number;
+        };
+        /**
+         * @description The thread's header. `classNames` and `former` read as they do on the
+         *     thread's `StudentThread` row: "Your teacher · {classes}", "Former
+         *     teacher", or "Your teacher" alone when both are empty and false.
+         */
+        StudentDirectThreadTeacher: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            classNames: string[];
+            former: boolean;
+            /** @description A post would be accepted. */
+            canPost: boolean;
+        };
+        StudentDirectThread: {
+            teacher: components["schemas"]["StudentDirectThreadTeacher"];
+            /** @description Oldest first. */
+            messages: components["schemas"]["StudentMessage"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
+        };
+        /** @description A class channel, read-only for students: "Only your teacher can post here. Reply to {teacher} directly." */
+        StudentClassThread: {
+            /** @constant */
+            readOnly: true;
+            class: components["schemas"]["PersonRef"];
+            teacher: components["schemas"]["MessageSender"];
+            /** @description Oldest first. */
+            messages: components["schemas"]["StudentMessage"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
+        };
+        /**
+         * @description What the caller may do with a test or a question set (D4). `owner` is
+         *     the content's owner, and anyone holding `scope.all`; `edit` and `use`
+         *     are a share's two levels, Can edit and Can use. A client tells the
+         *     owner from `owner.id`, never from this, because `scope.all` reads as
+         *     `owner`.
+         *
+         *     | Action | `owner` | `edit` | `use` |
+         *     |---|---|---|---|
+         *     | Read: detail, builder, versions, preview, diff | ✓ | ✓ | ✓ |
+         *     | Assign a published version to one's own classes | ✓ | ✓ | ✓ |
+         *     | Make a copy | ✓ | ✓ | ✓ |
+         *     | Autosave, change questions and groups, restore as draft, make default | ✓ | ✓ | |
+         *     | Publish (also needs `content.tests.publish`) | ✓ | ✓ | |
+         *     | Delete, archive, share, duplicate, delete a version | ✓ | | |
+         *
+         *     A caller who cannot read the content gets `404`. A reader without the
+         *     right gets `403` with `SHARE_READ_ONLY` (a use grant writing) or
+         *     `SHARE_OWNER_ONLY` (an owner's action).
+         * @enum {string}
+         */
+        ContentAccess: "owner" | "edit" | "use";
+        /** @description A person named by an id and a display name, as a line of a page shows them. */
+        PersonRef: {
+            id: components["schemas"]["Uuid"];
+            /** @description The display name. */
+            name: string;
+        };
+        /**
+         * @description What a share gives. Later releases add values; a client treats an unknown one as a row it cannot open.
+         * @enum {string}
+         */
+        ShareKind: "test" | "question_set";
+        /**
+         * @description Can use (read, assign, copy) or Can edit (also change and publish). See `ContentAccess`.
+         * @enum {string}
+         */
+        ShareAccess: "use" | "edit";
+        /** @description A colleague as the share dialog lists them. Never a student. */
+        ShareTeacher: {
+            id: components["schemas"]["Uuid"];
+            fullName: string;
+            displayName: string;
+            email: string;
+            /** @description The profile photo, a presigned GET valid 24 hours; `null` when there is none or no store is configured. */
+            avatarUrl: string | null;
+            /** @description The account is disabled. It cannot be picked as a new recipient. */
+            disabled: boolean;
+        };
+        ShareGrant: {
+            id: components["schemas"]["Uuid"];
+            grantee: components["schemas"]["ShareTeacher"];
+            access: components["schemas"]["ShareAccess"];
+            grantedAt: components["schemas"]["Timestamp"];
+            grantedBy: components["schemas"]["PersonRef"];
+        };
+        ShareOwner: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            email: string;
+            avatarUrl: string | null;
+        };
+        /** @description The share dialog's "People with access", the owner first. */
+        ShareList: {
+            owner: components["schemas"]["ShareOwner"];
+            /** @description Oldest grant first. */
+            grants: components["schemas"]["ShareGrant"][];
+        };
+        ShareCreate: {
+            kind: components["schemas"]["ShareKind"];
+            /** @description The test or the question set, as `kind` says. */
+            resourceId: components["schemas"]["Uuid"];
+            granteeIds: components["schemas"]["Uuid"][];
+            access: components["schemas"]["ShareAccess"];
+            /**
+             * @description "Send a notification". Each new recipient then gets
+             *     `content.shared` in app and by email. There is no recipient
+             *     switch: the sharer decides.
+             */
+            notify: boolean;
+            /** @description "Add a message (optional)": trimmed, empty is none. Carried by the notification and the email, marked as the sharer's words. */
+            message?: string | null;
+        };
+        /**
+         * @description Why a recipient got no grant. `SELF` is the content's owner,
+         *     `ALREADY_SHARED` already holds a grant (change it with `updateShare`),
+         *     `NOT_A_TEACHER` lacks the teaching workspace or is no account at all,
+         *     and `DISABLED` is a disabled account.
+         * @enum {string}
+         */
+        ShareSkipCode: "SELF" | "ALREADY_SHARED" | "NOT_A_TEACHER" | "DISABLED";
+        ShareCreateResult: {
+            /** @description The grants made, in the order of `granteeIds`. */
+            grants: components["schemas"]["ShareGrant"][];
+            skipped: {
+                userId: components["schemas"]["Uuid"];
+                code: components["schemas"]["ShareSkipCode"];
+            }[];
+        };
+        SharedWithMeOwner: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            /** @description The owner's account is disabled ("Account disabled"). The grant still works. */
+            disabled: boolean;
+        };
+        SharedWithMeItem: {
+            shareId: components["schemas"]["Uuid"];
+            kind: components["schemas"]["ShareKind"];
+            resourceId: components["schemas"]["Uuid"];
+            /** @description The test's title or the set's name, read now. */
+            name: string;
+            owner: components["schemas"]["SharedWithMeOwner"];
+            access: components["schemas"]["ShareAccess"];
+            sharedAt: components["schemas"]["Timestamp"];
+            /** @description A question set's live questions; `null` for a test. */
+            questionCount: number | null;
+        };
+        /** @description Live grants to the caller per tab, before `kind` and with `q`. */
+        SharedWithMeCounts: {
+            all: number;
+            test: number;
+            questionSet: number;
+        };
+        QuestionSetSummary: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            description: string | null;
+            /** @description Live questions in the set. */
+            questionCount: number;
+            /** @description Teachers holding a grant to the set. */
+            sharedWith: number;
+            updatedAt: components["schemas"]["Timestamp"];
+        };
+        /**
+         * @description A named, ordered selection of its owner's standalone bank questions
+         *     (DG-90, interim). It holds references, not copies: a question edited
+         *     in the bank is edited in the set. Passage and cloze groups are not
+         *     set members. Its questions are read with `listQuestions?setId=`.
+         */
+        QuestionSet: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            description: string | null;
+            owner: components["schemas"]["PersonRef"];
+            access: components["schemas"]["ContentAccess"];
+            questionCount: number;
+            /** @description Teachers holding a grant to the set; 0 for a caller who is not its owner and holds no `scope.all`. */
+            sharedWith: number;
+            createdAt: components["schemas"]["Timestamp"];
+            updatedAt: components["schemas"]["Timestamp"];
+        };
+        QuestionSetIds: {
+            questionIds: components["schemas"]["Uuid"][];
+        };
+        /** @description The new bank questions, in the order of the questions they copy. */
+        QuestionCopyResult: {
+            questionIds: components["schemas"]["Uuid"][];
+        };
+        /** @description The answer of `editTestQuestion`. */
+        TestQuestionEdit: {
+            /** @description The question as saved, the fork when `forked`. */
+            question: components["schemas"]["AdminQuestion"];
+            /**
+             * @description True when the edit made a new question (copy-on-write): the
+             *     original is used elsewhere, so this test now uses the copy, owned
+             *     by the original's owner, and nothing else changed.
+             */
+            forked: boolean;
+            /** @description The test's `updatedAt` after the edit, which the edit moves. The builder sends it as its next `expectedUpdatedAt`. */
+            testUpdatedAt: components["schemas"]["Timestamp"];
         };
         /**
          * @description Create/update body for a bank question. Cross-field rules that a single
@@ -9904,6 +11225,14 @@ export interface components {
             /** @description `essay` only. Order in the array is the stored ordinal; an empty list means the teacher sets the band directly. */
             rubric?: components["schemas"]["RubricCriterionInput"][];
             tags?: string[];
+            /**
+             * @description `updateQuestion` and `editTestQuestion`: the question's
+             *     `updatedAt` the editor last read. When the question has changed
+             *     since, the write answers `409 STALE_WRITE` naming who changed it,
+             *     and nothing is saved. Optional until R8, which makes it required;
+             *     every other operation that takes a `QuestionInput` ignores it.
+             */
+            expectedUpdatedAt?: components["schemas"]["Timestamp"];
         };
         /**
          * @description One matching item. Its key is named by position in the same body's
@@ -10495,6 +11824,64 @@ export interface operations {
                 };
             };
             429: components["responses"]["TooManyRequests"];
+        };
+    };
+    receiveEmailEvents: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Resend's delivery id; without it the answer is `401`. */
+                "svix-id"?: string;
+                /** @description Unix seconds; without it the answer is `401`. */
+                "svix-timestamp"?: string;
+                /** @description One or more `v1,<base64>` signatures; without it the answer is `401`. */
+                "svix-signature"?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Received. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description The signature is missing, wrong or stale. No body. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The body is over 64 KiB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+            /** @description No webhook secret is configured, so no delivery can be verified. */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     login: {
@@ -11555,6 +12942,7 @@ export interface operations {
     listTests: {
         parameters: {
             query?: {
+                include?: "shared";
                 status?: components["schemas"]["TestStatus"];
                 tag?: string[];
                 /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
@@ -11675,6 +13063,15 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The resource is still referenced or has not reached its required inactive state. */
             409: {
@@ -11735,8 +13132,17 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
-            /** @description `STALE_WRITE` — edited elsewhere since `expectedUpdatedAt`; `GROUP_OUTLINE_REQUIRED` — a legacy question-only outline cannot replace a draft containing shared groups. Metadata-only updates remain supported. `TEST_ARCHIVED` — restore the test before a mixed-outline edit. */
+            /** @description `STALE_WRITE` — edited elsewhere since `expectedUpdatedAt`, with `details.updatedBy` (`PersonRef` or `null`, who saved last) and `details.updatedAt`; `GROUP_OUTLINE_REQUIRED` — a legacy question-only outline cannot replace a draft containing shared groups. Metadata-only updates remain supported. `TEST_ARCHIVED` — restore the test before a mixed-outline edit. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -11869,6 +13275,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. `FORBIDDEN` — the caller lacks `content.tests.publish`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description `PUBLISH_VALIDATION_FAILED`. **Every** problem is returned at once,
@@ -11912,7 +13327,139 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test; a recipient uses `copyTest`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
+        };
+    };
+    copyTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Copied, as a draft of the caller's. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Test"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    copyQuestionsForTest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    questionIds: components["schemas"]["Uuid"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Copied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionCopyResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `NOT_FOUND` — no such test for the caller, or a question the caller cannot read (`details.questionIds`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    editTestQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+                questionId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionInput"];
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TestQuestionEdit"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            /**
+             * @description `STALE_WRITE` — the question changed since `expectedUpdatedAt`.
+             *     `details.updatedBy` (`PersonRef` or `null`) and
+             *     `details.updatedAt` name the last change. `TEST_ARCHIVED` —
+             *     restore the test first.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     listTestVersions: {
@@ -11961,6 +13508,15 @@ export interface operations {
                 content?: never;
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The version is referenced or current. Archiving does not prevent deletion of an unused, non-current version. */
             409: {
@@ -12045,6 +13601,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /** @description The test is archived (`TEST_ARCHIVED`) or the expected update time is stale (`STALE_WRITE`). */
             409: {
@@ -12085,6 +13650,15 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant to the test. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description The test is archived (`TEST_ARCHIVED`), the expected update time is
@@ -12146,6 +13720,7 @@ export interface operations {
     listQuestions: {
         parameters: {
             query?: {
+                setId?: components["schemas"]["Uuid"];
                 type?: components["schemas"]["QuestionType"][];
                 tag?: string[];
                 level?: components["schemas"]["QuestionLevel"][];
@@ -12215,11 +13790,22 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `NOT_FOUND` — `setId` names no set the caller can read. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     createQuestion: {
         parameters: {
-            query?: never;
+            query?: {
+                forTestId?: components["schemas"]["Uuid"];
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -12240,6 +13826,24 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `NOT_FOUND` — `forTestId` names no test the caller can read. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     tagQuestions: {
@@ -12313,6 +13917,15 @@ export interface operations {
         responses: {
             204: components["responses"]["NoContent"];
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller can read the question but does not own it. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
             /**
              * @description `QUESTION_REFERENCED` — still referenced by a draft test outline.
@@ -12331,7 +13944,9 @@ export interface operations {
     };
     updateQuestion: {
         parameters: {
-            query?: never;
+            query?: {
+                setId?: components["schemas"]["Uuid"];
+            };
             header?: never;
             path: {
                 id: components["parameters"]["IdPath"];
@@ -12354,12 +13969,45 @@ export interface operations {
                 };
             };
             400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller can read the question but not edit it. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
             404: components["responses"]["NotFound"];
+            /**
+             * @description `STALE_WRITE` — the question changed since `expectedUpdatedAt`.
+             *     `details.updatedBy` (`PersonRef` or `null`) and
+             *     `details.updatedAt` name the last change.
+             */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `EDIT_CONTEXT_REQUIRED` — the caller is not the question's owner and gave no set; a test's question is edited with `editTestQuestion`. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
         };
     };
     duplicateQuestion: {
         parameters: {
-            query?: never;
+            query?: {
+                forTestId?: components["schemas"]["Uuid"];
+            };
             header?: never;
             path: {
                 id: components["parameters"]["IdPath"];
@@ -12375,6 +14023,866 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminQuestion"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — without `forTestId`, a question the caller does not own; `SHARE_READ_ONLY` — `forTestId` names a test the caller holds a Can use grant to. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listQuestionSets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["QuestionSetSummary"][];
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    createQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @description Trimmed; 1 to 120 characters after trimming. */
+                    name: string;
+                    /** @description Trimmed; empty is none. */
+                    description?: string | null;
+                    questionIds: components["schemas"]["Uuid"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Created. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            /** @description `NOT_FOUND` — an id is not a live standalone question of the caller's bank. `details.questionIds` lists those ids, and nothing is created. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    deleteQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the set. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    name?: string;
+                    /** @description Trimmed; empty after trimming, or `null`, removes the description. */
+                    description?: string | null;
+                };
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    addQuestionSetItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionSetIds"];
+            };
+        };
+        responses: {
+            /** @description Added. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the set. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `NOT_FOUND` — no such set for the caller, or an id is not a live standalone question of the set owner's bank (`details.questionIds`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the set would hold more than 500 questions. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    removeQuestionSetItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionSetIds"];
+            };
+        };
+        responses: {
+            /** @description Removed. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["QuestionSet"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_READ_ONLY` — the caller holds a Can use grant. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    copyQuestionSet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    questionIds?: components["schemas"]["Uuid"][];
+                };
+            };
+        };
+        responses: {
+            /** @description Copied. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: uuid
+                         * @description The new set; `null` when `questionIds` was given.
+                         */
+                        setId: string | null;
+                        /** @description The new questions, in set order. */
+                        questionIds: components["schemas"]["Uuid"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `NOT_FOUND` — no such set for the caller, or an id is not a member of it (`details.questionIds`). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    searchTeacherDirectory: {
+        parameters: {
+            query?: {
+                q?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        teachers: components["schemas"]["ShareTeacher"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listShares: {
+        parameters: {
+            query: {
+                kind: components["schemas"]["ShareKind"];
+                resourceId: components["schemas"]["Uuid"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareList"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the content. `FORBIDDEN` — the caller lacks `content.share`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    createShares: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShareCreate"];
+            };
+        };
+        responses: {
+            /** @description Shared with everyone in `grants`. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareCreateResult"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller holds a grant, not the content. `FORBIDDEN` — the caller lacks `content.share`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    deleteShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller is the grant's recipient; they leave with `removeSharedWithMe`. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    updateShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    access: components["schemas"]["ShareAccess"];
+                };
+            };
+        };
+        responses: {
+            /** @description Saved. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareGrant"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            /** @description `SHARE_OWNER_ONLY` — the caller is the grant's recipient, not the content's owner. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listSharedWithMe: {
+        parameters: {
+            query?: {
+                kind?: components["schemas"]["ShareKind"];
+                /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
+                q?: components["parameters"]["Query"];
+                /**
+                 * @description 1-based page number. Lists are OFFSET-paginated so a client can draw
+                 *     numbered pages (O-20 overrides §13.8's keyset rule for the teacher's
+                 *     lists: at this scale the teacher wants "trang 3 / 26" more than
+                 *     stability under concurrent inserts). A page past the end is an empty
+                 *     `items` with the same `total`.
+                 *
+                 *     Page size is `limit`, declared per operation with its own default -- a
+                 *     media grid wants a different page from a table of tests. The response
+                 *     echoes the size actually used as `pageSize`; compute page counts from
+                 *     that and `total`, never from an assumed size.
+                 */
+                page?: components["parameters"]["Page"];
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PageInfo"] & {
+                        items: components["schemas"]["SharedWithMeItem"][];
+                        counts: components["schemas"]["SharedWithMeCounts"];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    removeSharedWithMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                shareId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    listStaffThreads: {
+        parameters: {
+            query?: {
+                tab?: "all" | "direct" | "classes";
+                /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
+                q?: components["parameters"]["Query"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        threads: components["schemas"]["StaffThread"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getStaffDirectThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffDirectThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postStaffDirectMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffMessagePost"];
+            };
+        };
+        responses: {
+            /** @description `clientId` repeats: the message it made. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            /** @description Sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `MESSAGING_NOT_ALLOWED` — a messaging peer whose account is disabled or no longer a student. The thread stays readable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — neither a body nor a file, or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    markStaffDirectThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                studentId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getStaffClassThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffClassThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postClassAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffMessagePost"];
+            };
+        };
+        responses: {
+            /** @description `clientId` repeats: the message it made. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            /** @description Posted. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            /** @description `CLASS_ARCHIVED` — restore the class first. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — neither a body nor a file, or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    markStaffClassThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uploadMessageAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /** Format: binary */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Stored, not yet sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageAttachment"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            /** @description `MEDIA_TOO_LARGE` — over 20 MB. */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /**
+             * @description `MEDIA_TYPE_UNSUPPORTED` — not one of the accepted types (a WebP,
+             *     a spreadsheet, a ZIP named `.docx`). `IMAGE_DIMENSIONS` — an image
+             *     larger than 10000 × 10000. `ATTACHMENT_HAS_MACROS` — a Word file
+             *     with macros (a DOCM, or a DOC with a `Macros` storage): save it
+             *     without them and attach it again.
+             */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    getStaffMessageAttachmentUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description `private, no-store`. */
+                    "Cache-Control": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentUrl"];
                 };
             };
             400: components["responses"]["BadRequest"];
@@ -13356,6 +15864,9 @@ export interface operations {
              *     `details.tests` names those versions as `ReferencingTest[]`,
              *     sorted by title then version (A-07). `details.groups` names protected
              *     draft/bank context as `ReferencingGroup[]`, sorted by title then ID.
+             *     `MEDIA_IN_USE_ELSEWHERE` — a live bank question or draft group of
+             *     another teacher uses it, through a copy or a share.
+             *     `details.count` says how many; nothing of theirs is named.
              */
             409: {
                 headers: {
@@ -14862,7 +17373,8 @@ export interface operations {
              *     created), `attempts`, `audit` (audit history it acted in),
              *     `owned_content` (tests, questions, question groups, media, classes,
              *     join codes, published versions or Word imports it owns or created),
-             *     or `other`.
+             *     `messages` (a message it sent, a thread it is in, a file it
+             *     uploaded), or `other`.
              */
             409: {
                 headers: {
@@ -16799,7 +19311,7 @@ export interface operations {
              *     `details.referencedBy` (`ReferencedBy`) always names what:
              *     `assignments` (an assignment targets the class), `members` (a
              *     membership in another class came through one of its join codes),
-             *     or `other`.
+             *     `messages` (its announcement channel has posts), or `other`.
              */
             409: {
                 headers: {
@@ -18002,6 +20514,229 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             403: components["responses"]["Forbidden"];
+        };
+    };
+    listStudentThreads: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        threads: components["schemas"]["StudentThread"][];
+                    };
+                };
+            };
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getStudentDirectThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentDirectThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postStudentDirectMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentMessagePost"];
+            };
+        };
+        responses: {
+            /** @description `clientId` repeats: the message it made. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentMessage"];
+                };
+            };
+            /** @description Sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentMessage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `MESSAGING_NOT_ALLOWED` — the teacher's account is disabled or no longer staff, or the caller's is no longer a student. The thread stays readable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — the body is blank once trimmed (`details.body`), or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    markStudentDirectThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                teacherId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getStudentClassThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentClassThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    markStudentClassThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    getStudentMessageAttachmentUrl: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["IdPath"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    /** @description `private, no-store`. */
+                    "Cache-Control": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentUrl"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
         };
     };
     listNotifications: {
