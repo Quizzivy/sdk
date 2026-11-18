@@ -2280,7 +2280,9 @@ export interface paths {
          *     `durationMinutes` or `maxAttempts` is refused with `ASSIGNMENT_LOCKED`
          *     (DG-65: only "Test & timing" locks); sending the stored value passes,
          *     and every other field stays editable. Outside `open` the version check
-         *     above is the only one.
+         *     above is the only one, except for `mode`: a change to it is refused
+         *     with `ASSIGNMENT_LOCKED` while the assignment is open **or** once any
+         *     attempt exists, so an attempt never changes mode under a student (F1).
          *
          *     A **closed** assignment, by its window or by an early close, at the
          *     moment of the request, stays closed: a `window` that would make it
@@ -2298,7 +2300,8 @@ export interface paths {
          *
          *     An attempt already in progress moves with a later close, in the same
          *     transaction: its deadline becomes the earlier of its start plus the
-         *     student's time limit and the student's own close, when that is later
+         *     student's time limit and the student's own close (under `flexible`,
+         *     the student's own close), when that is later
          *     than the deadline it has. A deadline never moves earlier, so a shorter
          *     close, or `closeNow`, leaves every attempt in progress where it is, and
          *     an attempt whose deadline has already passed is over and is not
@@ -6833,6 +6836,7 @@ export interface components {
             workspace?: "teacher" | "admin";
             assignmentDefaults?: {
                 durationMinutes?: number;
+                mode?: components["schemas"]["AssignmentMode"];
                 shuffleQuestions?: boolean;
                 showScore?: boolean;
                 blockCopyPaste?: boolean;
@@ -7259,6 +7263,8 @@ export interface components {
             /** @description The assignment's author. */
             teacherName?: string | null;
             status: components["schemas"]["AssignmentStatus"];
+            /** @description The intro states the rules of this mode (§10.2). See StudentAssignmentCard. */
+            mode: components["schemas"]["AssignmentMode"];
             opensAt: components["schemas"]["Timestamp"];
             closesAt: components["schemas"]["Timestamp"];
             durationMinutes: number;
@@ -9443,6 +9449,24 @@ export interface components {
             groupId?: string | null;
         };
         /**
+         * @description How the assignment times an attempt and what leaving the paper does
+         *     (F1, `docs/plan/77f-f1-assignment-modes.md`).
+         *
+         *     - `strict`: an attempt's deadline is
+         *       `min(startedAt + durationMinutes, the student's close)`, and the
+         *       integrity policy's `maxFocusLoss` and `onLimitExceeded` decide what
+         *       a counted absence does. Every assignment made before F1 is strict.
+         *     - `flexible`: an attempt's deadline is the student's close, so a
+         *       student can stop, take a break and come back on any device until
+         *       then. Every signal is recorded as under strict. The first counted
+         *       absence flags the attempt and tells the teacher, and later ones tell
+         *       the teacher again at most once per attempt every 15 minutes. No
+         *       absence submits or locks the paper. `durationMinutes`,
+         *       `maxFocusLoss` and `onLimitExceeded` are stored and not applied.
+         * @enum {string}
+         */
+        AssignmentMode: "strict" | "flexible";
+        /**
          * @description **Derived**, never stored (D-18). A pure function of `publishedAt`,
          *     `opensAt`, `closesAt` and an optional early `closedAt`, so it cannot go
          *     stale and needs no scheduler.
@@ -9509,12 +9533,12 @@ export interface components {
             /** @default true */
             blockCopyPaste: boolean;
             /**
-             * @description -1 = no away episodes allowed; 0 = unlimited; positive values = allowed counted episodes.
+             * @description -1 = no away episodes allowed; 0 = unlimited; positive values = allowed counted episodes. Stored and not applied when the assignment is `flexible`.
              * @default 0
              */
             maxFocusLoss: number;
             /**
-             * @description `auto_submit` immediately submits after the allowed number of counted away episodes is exceeded, preserving answers and recording the violation.
+             * @description `auto_submit` immediately submits after the allowed number of counted away episodes is exceeded, preserving answers and recording the violation. Stored and not applied when the assignment is `flexible`: there, a counted absence flags the attempt and tells the teacher, and nothing submits it.
              * @default flag
              * @enum {string}
              */
@@ -9561,11 +9585,15 @@ export interface components {
                 closedAt?: string | null;
             };
             /**
-             * @description Server-enforced. An attempt's deadline is
+             * @description Server-enforced under `strict`. An attempt's deadline is
              *     `min(startedAt + duration, closesAt)`, so starting late does not buy
              *     a full duration and does not cut the student off mid-window (O-05).
+             *     Under `flexible` it is stored and not applied: the deadline is the
+             *     student's close, and a switch back to strict before the open finds
+             *     the teacher's value.
              */
             durationMinutes: number;
+            mode: components["schemas"]["AssignmentMode"];
             maxAttempts: number;
             shuffleQuestions: boolean;
             shuffleOptions: boolean;
@@ -9781,6 +9809,12 @@ export interface components {
                 [key: string]: components["schemas"]["Answer"];
             };
             integrity: components["schemas"]["IntegrityPolicy"];
+            /**
+             * @description The assignment's mode. Under `flexible` the engine never submits
+             *     for leaving, whatever `integrity.onLimitExceeded` says, and
+             *     `attempt.deadlineAt` is the student's close.
+             */
+            mode: components["schemas"]["AssignmentMode"];
         };
         GroupAudioPlayInput: {
             recordingId: components["schemas"]["Uuid"];
@@ -9797,12 +9831,14 @@ export interface components {
             /**
              * @description Not an enum: an append-only telemetry log reliably gains kinds, and a
              *     newer client must not fail against an older server. Unknown kinds are
-             *     stored, not rejected. Known set is §10.1.
+             *     stored, not rejected. Known set is §10.1, plus `paper_left`: the
+             *     student left the paper by its ✕ (a break under `flexible`).
              * @example tab_hidden
              * @example window_blur
              * @example paste
              * @example audio_play
              * @example network_offline
+             * @example paper_left
              */
             kind: string;
             occurredAt: components["schemas"]["Timestamp"];
@@ -9824,6 +9860,14 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /**
+         * @description Milliseconds the paper was visible in this tab since the session's
+         *     previous report (F1). The server credits at most the time that has
+         *     passed since that report plus 5 seconds, only while the attempt is in
+         *     progress and only from its current session; a report from a session
+         *     another tab replaced is dropped. Omitted, nothing is credited.
+         */
+        ActiveMsInput: number;
         IntegrityEvent: {
             /** Format: int64 */
             id: number;
@@ -9876,6 +9920,7 @@ export interface components {
             answeredCount?: number | null;
             score?: components["schemas"]["AttemptScore"] | null;
             focusLossCount?: number | null;
+            activeSeconds?: components["schemas"]["ActiveSeconds"];
             flagged?: boolean;
             /** @description Reported, never enforced (§11.4). */
             audioOverLimit?: boolean;
@@ -9885,6 +9930,13 @@ export interface components {
              */
             extendedTo?: string | null;
         };
+        /**
+         * @description Time on the paper: the seconds the engine reported the paper visible,
+         *     added up over every sitting (F1), rounded down. Null for an attempt
+         *     started before F1 and for a row with no attempt. Teacher-only: no
+         *     `/app/*` payload carries it.
+         */
+        ActiveSeconds: number | null;
         AttemptListRow: {
             id: components["schemas"]["Uuid"];
             studentId: components["schemas"]["Uuid"];
@@ -10012,6 +10064,8 @@ export interface components {
             /** @description Every class this assignment targets that contains the student and is not archived, so each class card can name its next paper. Empty for a student targeted only by name. */
             classIds?: components["schemas"]["Uuid"][];
             status: components["schemas"]["AssignmentStatus"];
+            /** @description Under `flexible` the student may stop and resume until `closesAt`; `durationMinutes` does not apply. */
+            mode: components["schemas"]["AssignmentMode"];
             opensAt: components["schemas"]["Timestamp"];
             closesAt: components["schemas"]["Timestamp"];
             durationMinutes: number;
@@ -10542,7 +10596,7 @@ export interface components {
          *     | Kind | For | Params |
          *     |---|---|---|
          *     | `attempt.submitted` | a teacher | `title`, `count`, `toGrade` |
-         *     | `attempt.flagged` | a teacher | `studentName`, `title`, `focusLost` |
+         *     | `attempt.flagged` | a teacher | `studentName`, `title`, `focusLost` (under a `flexible` assignment, written again with the new count at most once per attempt every 15 minutes) |
          *     | `assignment.closing` | a teacher | `title`, `notSubmitted` |
          *     | `class.joined` | a teacher | `studentName`, `className` |
          *     | `join_codes.rotated` | a teacher | `count`, `classNames` |
@@ -11373,7 +11427,14 @@ export interface components {
                 opensAt: components["schemas"]["Timestamp"];
                 closesAt: components["schemas"]["Timestamp"];
             };
+            /** @description Required in both modes; stored and not applied under `flexible`. */
             durationMinutes: number;
+            /**
+             * @description Omitted, a create is `strict` and a PATCH keeps the stored mode.
+             *     Changing it answers `409 ASSIGNMENT_LOCKED` while the assignment is
+             *     open or once any attempt exists, as the time limit does.
+             */
+            mode?: components["schemas"]["AssignmentMode"];
             /** @default 1 */
             maxAttempts: number;
             /**
@@ -16103,7 +16164,8 @@ export interface operations {
             404: components["responses"]["NotFound"];
             /**
              * @description `ASSIGNMENT_LOCKED` — the assignment is open, so the version, the
-             *     duration and the attempts cannot be changed; `ASSIGNMENT_CLOSED` —
+             *     duration, the attempts and the mode cannot be changed, or an
+             *     attempt exists, so the mode cannot; `ASSIGNMENT_CLOSED` —
              *     the assignment is closed and the window would open it again, so it
              *     is reopened with `reopenAssignment`; `VERSION_LOCKED` — attempts
              *     exist, so the version cannot be changed; or `TEST_NOT_PUBLISHED`.
@@ -16538,6 +16600,7 @@ export interface operations {
                             [key: string]: number;
                         };
                         integrity: components["schemas"]["IntegritySummary"];
+                        activeSeconds?: components["schemas"]["ActiveSeconds"];
                         /**
                          * @description G-05's "Ghi chú của bạn": the teacher's private note on
                          *     this attempt. Teacher-only by construction — it lives on
@@ -20215,6 +20278,7 @@ export interface operations {
                         [key: string]: components["schemas"]["Answer"];
                     };
                     events?: components["schemas"]["IntegrityEventInput"][];
+                    activeMs?: components["schemas"]["ActiveMsInput"];
                 };
             };
         };
@@ -20270,6 +20334,7 @@ export interface operations {
                 "application/json": {
                     sessionId: components["schemas"]["Uuid"];
                     events: components["schemas"]["IntegrityEventInput"][];
+                    activeMs?: components["schemas"]["ActiveMsInput"];
                 };
                 "text/plain": string;
             };
