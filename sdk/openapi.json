@@ -6520,7 +6520,16 @@
             ],
             "minLength": 1,
             "maxLength": 60,
-            "description": "Where the class meets, derived: the class's own room, else the one\nroom every active series of the class shares (`ClassSchedule`),\nelse `null`. `createClass` and `updateClass` set the class's own\nroom. Plain text, trimmed.\n"
+            "description": "Where the class meets, derived: the class's own room, else the one\nroom every active series of the class shares (`ClassSchedule`),\nelse `null`. `createClass` and `updateClass` set the class's own\nroom, which `ownRoom` reads; an edit form prefills from `ownRoom`,\nnever from this. Plain text, trimmed.\n"
+          },
+          "ownRoom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "The class's own room, as `createClass` and `updateClass` set it,\n`null` for none. Teacher responses only.\n"
           },
           "schedule": {
             "$ref": "#/components/schemas/ClassSchedule"
@@ -6621,7 +6630,16 @@
             ],
             "minLength": 1,
             "maxLength": 60,
-            "description": "Where the class meets, derived: the class's own room, else the one\nroom every active series of the class shares (`ClassSchedule`),\nelse `null`. `createClass` and `updateClass` set the class's own\nroom. Plain text, trimmed.\n"
+            "description": "Where the class meets, derived: the class's own room, else the one\nroom every active series of the class shares (`ClassSchedule`),\nelse `null`. `createClass` and `updateClass` set the class's own\nroom, which `ownRoom` reads; an edit form prefills from `ownRoom`,\nnever from this. Plain text, trimmed.\n"
+          },
+          "ownRoom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 1,
+            "maxLength": 60,
+            "description": "The class's own room, as `createClass` and `updateClass` set it,\n`null` for none. Teacher responses only.\n"
           },
           "schedule": {
             "$ref": "#/components/schemas/ClassSchedule"
@@ -7395,7 +7413,7 @@
             ],
             "minLength": 1,
             "maxLength": 60,
-            "description": "Trimmed by the server. On an occurrence, `null` meets in no room that day.",
+            "description": "Trimmed by the server. On a one-off, `null` means no room. On a\nweekly occurrence, `null` clears the date's own room, and the\nseries' room applies again.\n",
             "x-go-type": "json.RawMessage",
             "x-go-type-skip-optional-pointer": true
           },

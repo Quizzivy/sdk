@@ -8183,9 +8183,15 @@ export interface components {
              * @description Where the class meets, derived: the class's own room, else the one
              *     room every active series of the class shares (`ClassSchedule`),
              *     else `null`. `createClass` and `updateClass` set the class's own
-             *     room. Plain text, trimmed.
+             *     room, which `ownRoom` reads; an edit form prefills from `ownRoom`,
+             *     never from this. Plain text, trimmed.
              */
             room?: string | null;
+            /**
+             * @description The class's own room, as `createClass` and `updateClass` set it,
+             *     `null` for none. Teacher responses only.
+             */
+            ownRoom?: string | null;
             schedule: components["schemas"]["ClassSchedule"];
             studentCount: number;
             /** @description Assignments whose derived status is `open` and that target this class (G-08). */
@@ -8227,9 +8233,15 @@ export interface components {
              * @description Where the class meets, derived: the class's own room, else the one
              *     room every active series of the class shares (`ClassSchedule`),
              *     else `null`. `createClass` and `updateClass` set the class's own
-             *     room. Plain text, trimmed.
+             *     room, which `ownRoom` reads; an edit form prefills from `ownRoom`,
+             *     never from this. Plain text, trimmed.
              */
             room?: string | null;
+            /**
+             * @description The class's own room, as `createClass` and `updateClass` set it,
+             *     `null` for none. Teacher responses only.
+             */
+            ownRoom?: string | null;
             schedule: components["schemas"]["ClassSchedule"];
             studentCount: number;
             /** @description Assignments whose derived status is `open` and that target this class (G-08). */
@@ -8521,7 +8533,11 @@ export interface components {
             date?: components["schemas"]["LocalDate"];
             startTime?: components["schemas"]["LocalTime"];
             durationMinutes?: components["schemas"]["SessionMinutes"];
-            /** @description Trimmed by the server. On an occurrence, `null` meets in no room that day. */
+            /**
+             * @description Trimmed by the server. On a one-off, `null` means no room. On a
+             *     weekly occurrence, `null` clears the date's own room, and the
+             *     series' room applies again.
+             */
             room?: string | null;
             /** @description As `ClassSession.note`; `null` removes it. */
             note?: string | null;
