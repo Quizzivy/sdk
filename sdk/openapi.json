@@ -4275,7 +4275,7 @@
       },
       "CurrentUserRole": {
         "type": "object",
-        "description": "The role the caller holds, on the caller's own document and nowhere\nelse, so no payload about another person names a role. `name` is the\nstored name. A client shows a built-in role (`builtinKey` set) by its\nlocalised name while the stored name is still the seeded one, and the\nstored name otherwise, as the Roles screen does. Always sent by the\nserver, and optional in the schema as `preferences` is. It is not the\nlegacy `role` string of v0.9.x, which `User` still does not carry.\n",
+        "description": "The role the caller holds, on the caller's own document and nowhere\nelse. Another person's role is named only where a payload needs it:\nthe Admin console's accounts (`AdminUserRole`) and a colleague in\nstaff Messages (`roleName` and `roleBuiltinKey` on `ColleagueThread`,\n`ColleagueDirectThreadPeer` and `MessageRecipient`), never a\nstudent's. `name` is the stored name. A client shows a built-in role (`builtinKey` set) by its\nlocalised name while the stored name is still the seeded one, and the\nstored name otherwise, as the Roles screen does. Always sent by the\nserver, and optional in the schema as `preferences` is. It is not the\nlegacy `role` string of v0.9.x, which `User` still does not carry.\n",
         "required": [
           "id",
           "builtinKey",
@@ -23388,7 +23388,7 @@
           "teacher-messages"
         ],
         "summary": "Find a student or a colleague to write to",
-        "description": "The New message picker. `audience=students` lists every enabled\nstudent, in one of the caller's classes, in another teacher's or in\nnone; `audience=colleagues` lists every enabled account that opens\nthe teacher workspace and is not a student, never the caller. An\naccount that opens only the Admin console is not a colleague: it\ncannot open Messages. Every staff member who opens the teacher\nworkspace gets the same rows; `scope.all` plays no part.\n\nWithout `q` (the picker just opened) it lists by name; `q` matches\nthe name, accent-insensitively (`duc` finds `Đức`). For students,\n`classId` keeps the members of one class in the caller's class\nscope (another's answers 404, as an unknown one does), and\n`inNoClass=true` keeps the students in no current class that is not\narchived. Neither is taken with `audience=colleagues`, and the two\nare not taken together: such a request answers 400.\n\nOrdered by name, then id, and paged by a cursor: ask again with\n`cursor` set to `nextCursor`, which is `null` on the last page. A\ncursor this list did not give answers 400. A row with\n`threadExists` opens that thread; any other opens the empty thread,\nand the first post makes it.\n\nThis is not a list of owned resources, so its rows are under\n`recipients`, not `items`, and it declares no `x-resource-list`, as\n`searchTeacherDirectory` does not. Leak review: a student row\ncarries the id, the name, the photo and the names of the student's\ncurrent classes that are not archived; never an email, a username,\na birth date, a result, an attempt, a teacher's name or a member\ncount. A colleague row carries the id, the name, the photo and the\nrole's name; never an email (narrower than\n`searchTeacherDirectory`, whose audience is `content.share`), never\nthe colleague's other threads, counts or sign-in times. Class names\nare names only, never an id, so nothing here opens a class outside\nthe caller's scope, and the class filter accepts only the caller's\nclasses.\n\nLimited to 60 a minute per signed-in user.\n",
+        "description": "The New message picker. `audience=students` lists every enabled\nstudent, in one of the caller's classes, in another teacher's or in\nnone; `audience=colleagues` lists every enabled account that opens\nthe teacher workspace and is not a student, never the caller. An\naccount that opens only the Admin console is not a colleague: it\ncannot open Messages. Every staff member who opens the teacher\nworkspace gets the same rows; `scope.all` plays no part.\n\nWithout `q` (the picker just opened) it lists by name; `q` matches\nthe name, accent-insensitively (`duc` finds `Đức`). For students,\none filter at most, the picker's four: none (all students);\n`mine=true`, the students of any current class, not archived, in the\ncaller's class scope (\"Students in my classes\"); `classId`, the\nmembers of one class in the caller's class scope (one outside it\nanswers 404, as an unknown one does); `inNoClass=true`, the students\nin no current class that is not archived. `mine=false` and\n`inNoClass=false` are the same as leaving them out.\n\nThese answer 400 `VALIDATION_FAILED`: `classId` with `mine=true` or\n`inNoClass=true`; `mine=true` with `inNoClass=true`; `classId`,\n`mine=true` or `inNoClass=true` with `audience=colleagues`; and a\n`cursor` this list did not give.\n\nOrdered by name, then id, and paged by a cursor: ask again with\n`cursor` set to `nextCursor`, which is `null` on the last page. A\nrow with\n`threadExists` opens that thread; any other opens the empty thread,\nand the first post makes it.\n\nThis is not a list of owned resources, so its rows are under\n`recipients`, not `items`, and it declares no `x-resource-list`, as\n`searchTeacherDirectory` does not. Leak review: a student row\ncarries the id, the name, the photo and the names of the student's\ncurrent classes that are not archived; never an email, a username,\na birth date, a result, an attempt, a teacher's name or a member\ncount. A colleague row carries the id, the name, the photo and the\nrole's name; never an email (narrower than\n`searchTeacherDirectory`, whose audience is `content.share`), never\nthe colleague's other threads, counts or sign-in times. Class names\nare names only, never an id, so nothing here opens a class outside\nthe caller's class scope, and `classId` and `mine` reach only\nclasses in the caller's class scope.\n\nLimited to 60 a minute per signed-in user.\n",
         "parameters": [
           {
             "name": "audience",
@@ -23415,10 +23415,20 @@
             }
           },
           {
+            "name": "mine",
+            "in": "query",
+            "required": false,
+            "description": "`students` only: true keeps the students of any current class, not archived, in the caller's class scope. Not with `classId` or `inNoClass=true`; false is the same as leaving it out.",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          {
             "name": "inNoClass",
             "in": "query",
             "required": false,
-            "description": "`students` only: true keeps the students in no current class that is not archived. Not with `classId`.",
+            "description": "`students` only: true keeps the students in no current class that is not archived. Not with `classId` or `mine=true`; false is the same as leaving it out.",
             "schema": {
               "type": "boolean",
               "default": false
