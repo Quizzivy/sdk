@@ -7065,12 +7065,14 @@ export interface components {
          * @description What still references a row whose permanent delete answered
          *     `RESOURCE_REFERENCED`, carried as `details.referencedBy` by
          *     `deleteClass` and `deleteUser`. `messages` is a class channel with posts,
-         *     or an account's messages, threads or files. `other` is a reference the
+         *     or an account's messages, threads or files. `attendance` is a mark
+         *     taken in one of a class's sessions, or a mark an account received or
+         *     made. `other` is a reference the
          *     server does not name. Later releases add values; a client treats an
          *     unknown one as `other`.
          * @enum {string}
          */
-        ReferencedBy: "assignments" | "attempts" | "audit" | "members" | "messages" | "owned_content" | "other";
+        ReferencedBy: "assignments" | "attempts" | "attendance" | "audit" | "members" | "messages" | "owned_content" | "other";
         MediaReplacementCounts: {
             questions: number;
             groups: number;
@@ -11283,8 +11285,9 @@ export interface components {
              * @description `updateQuestion` and `editTestQuestion`: the question's
              *     `updatedAt` the editor last read. When the question has changed
              *     since, the write answers `409 STALE_WRITE` naming who changed it,
-             *     and nothing is saved. Optional until R8, which makes it required;
-             *     every other operation that takes a `QuestionInput` ignores it.
+             *     and nothing is saved. Required on `updateQuestion` since R8;
+             *     optional on `editTestQuestion`; every other operation that takes a
+             *     `QuestionInput` ignores it.
              */
             expectedUpdatedAt?: components["schemas"]["Timestamp"];
         };
@@ -14016,7 +14019,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["QuestionInput"];
+                "application/json": components["schemas"]["QuestionInput"] & unknown;
             };
         };
         responses: {
@@ -17433,9 +17436,11 @@ export interface operations {
              *     `RESOURCE_REFERENCED` — something still references it, and
              *     `details.referencedBy` (`ReferencedBy`) always names what:
              *     `assignments` (an individual assignment target, or an assignment it
-             *     created), `attempts`, `audit` (audit history it acted in),
+             *     created), `attempts`, `attendance` (an attendance mark it received
+             *     or made), `audit` (audit history it acted in),
              *     `owned_content` (tests, questions, question groups, media, classes,
-             *     join codes, published versions or Word imports it owns or created),
+             *     join codes, published versions, Word imports, terms, or class
+             *     sessions and their weekly series it owns or created),
              *     `messages` (a message it sent, a thread it is in, a file it
              *     uploaded), or `other`.
              */
@@ -19372,7 +19377,9 @@ export interface operations {
              * @description `RESOURCE_NOT_ARCHIVED` — the class is not archived.
              *     `RESOURCE_REFERENCED` — something still references it, and
              *     `details.referencedBy` (`ReferencedBy`) always names what:
-             *     `assignments` (an assignment targets the class), `members` (a
+             *     `assignments` (an assignment targets the class), `attendance`
+             *     (one of its sessions has attendance; a class with sessions but no
+             *     attendance deletes, and its sessions with it), `members` (a
              *     membership in another class came through one of its join codes),
              *     `messages` (its announcement channel has posts), or `other`.
              */
