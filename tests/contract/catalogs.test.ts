@@ -27,6 +27,23 @@ describe("audit-actions.json", () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
+  it("words R8's schedule actions (plan 78 T-R8.3, T-R8.4, T-R8.6)", () => {
+    for (const key of [
+      "attendance.saved",
+      "session.cancelled",
+      "session.created",
+      "session.deleted",
+      "session.updated",
+      "session_series.ended",
+      "session_series.updated",
+      "term.created",
+      "term.deleted",
+      "term.updated",
+    ]) {
+      expect(keys).toContain(key);
+    }
+  });
+
   // The server's own rule (audit/domain/tests/scan_test.go actionShape).
   it("names each action noun.verb", () => {
     for (const key of keys) expect(key, key).toMatch(/^[a-z][a-z_]*(\.[a-z][a-z_]*){1,2}$/);
