@@ -4804,7 +4804,12 @@ export interface paths {
         /**
          * Stop repeating a weekly session
          * @description Sets the series' last date (`SeriesEnd`) and removes its single-date
-         *     changes after it. A `lastDate` before `startsOn` removes the series.
+         *     changes that happen after it, judged by when each one happens, not by
+         *     the date it was scheduled for. The past is never rewritten: a
+         *     `lastDate` before yesterday in the series' zone, or after the series'
+         *     current last date, answers `400 VALIDATION_FAILED` naming `lastDate`.
+         *     A series that has not started yet (`startsOn` today or later) is
+         *     removed when `lastDate` is before `startsOn`.
          *     One audit row, `session_series.ended`, entity `class_session_series`,
          *     whether the series ended or was removed.
          */
@@ -6072,7 +6077,10 @@ export interface components {
          *     was scheduled for, which stays its id when the session moves. An
          *     occurrence's id is the same whether or not it has a row. One that is
          *     malformed, unknown or outside the caller's reach answers 404, never
-         *     400, so it carries no pattern.
+         *     400, so it carries no pattern. A session of an archived class that
+         *     starts at or after the class was archived does not exist, for every
+         *     read and write; the class's sessions before it stay, and restoring
+         *     the class brings the later ones back.
          * @example 019535d9-3df7-79fb-b466-fa907fa17f9e.20260922
          */
         SessionId: string;
@@ -20800,7 +20808,7 @@ export interface operations {
                     "application/json": components["schemas"]["SessionSeries"];
                 };
             };
-            /** @description The series was removed, since `lastDate` is before it started. */
+            /** @description The series was removed, since it has not started and `lastDate` is before its first date. */
             204: {
                 headers: {
                     [name: string]: unknown;
