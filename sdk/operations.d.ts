@@ -79,6 +79,11 @@ export declare const OPERATIONS: {
   readonly "getStaffClassThread": { readonly method: "get"; readonly path: "/teacher/messages/classes/{classId}" };
   readonly "postClassAnnouncement": { readonly method: "post"; readonly path: "/teacher/messages/classes/{classId}" };
   readonly "markStaffClassThreadRead": { readonly method: "post"; readonly path: "/teacher/messages/classes/{classId}/read" };
+  readonly "listMessageRecipients": { readonly method: "get"; readonly path: "/teacher/messages/recipients" };
+  readonly "listColleagueThreads": { readonly method: "get"; readonly path: "/teacher/messages/colleagues" };
+  readonly "getColleagueThread": { readonly method: "get"; readonly path: "/teacher/messages/colleagues/{colleagueId}" };
+  readonly "postColleagueMessage": { readonly method: "post"; readonly path: "/teacher/messages/colleagues/{colleagueId}" };
+  readonly "markColleagueThreadRead": { readonly method: "post"; readonly path: "/teacher/messages/colleagues/{colleagueId}/read" };
   readonly "uploadMessageAttachment": { readonly method: "post"; readonly path: "/teacher/messages/attachments" };
   readonly "getStaffMessageAttachmentUrl": { readonly method: "get"; readonly path: "/teacher/messages/attachments/{id}" };
   readonly "listWordImports": { readonly method: "get"; readonly path: "/teacher/imports" };
