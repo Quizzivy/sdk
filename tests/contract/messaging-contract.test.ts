@@ -194,6 +194,19 @@ describe("the leak review (T-F2.1)", () => {
   });
 });
 
+describe("a colleague's role is the one role named about another person", () => {
+  it("says so on CurrentUserRole, pointing at the three colleague schemas", () => {
+    const text: string = schemas.CurrentUserRole.description.replace(/\s+/g, " ");
+    expect(text).not.toContain("no payload about another person names a role");
+    for (const name of ["ColleagueThread", "ColleagueDirectThreadPeer", "MessageRecipient"]) {
+      expect(text).toContain(`\`${name}\``);
+      expect(schemas[name].properties.roleBuiltinKey.oneOf).toContainEqual({
+        $ref: "#/components/schemas/BuiltinRoleKey",
+      });
+    }
+  });
+});
+
 describe("additive only: no enum gains a value", () => {
   it("keeps the thread kinds, the sender's sides and the notification routes", () => {
     expect(schemas.StaffThreadRef.properties.kind.enum).toEqual(["class", "direct"]);
@@ -243,9 +256,37 @@ describe("listMessageRecipients", () => {
     });
     expect(finder.parameters).toContainEqual({ $ref: "#/components/parameters/Query" });
     expect(param("classId").schema).toEqual({ $ref: "#/components/schemas/Uuid" });
-    expect(param("inNoClass").schema.type).toBe("boolean");
+    expect(param("inNoClass").schema).toEqual({ type: "boolean", default: false });
+    expect(param("mine").schema).toEqual({ type: "boolean", default: false });
     expect(param("cursor").schema.type).toBe("string");
     expect(param("limit").schema).toEqual({ type: "integer", minimum: 1, maximum: 50, default: 30 });
+  });
+
+  it("offers the picker's four student filters, each held to the caller's class scope", () => {
+    const names = finder.parameters.map((p: Json) => p.name ?? p.$ref);
+    expect(names).toEqual([
+      "audience",
+      "#/components/parameters/Query",
+      "classId",
+      "mine",
+      "inNoClass",
+      "cursor",
+      "limit",
+    ]);
+    const text: string = finder.description.replace(/\s+/g, " ");
+    expect(text).toContain("`mine=true`, the students of any current class, not archived, in the caller's class scope");
+    expect(text).toContain("the members of one class in the caller's class scope");
+    expect(text).toContain("`classId` and `mine` reach only classes in the caller's class scope");
+    expect(text).not.toMatch(/only the caller's classes/);
+  });
+
+  it("states exactly which combinations answer 400", () => {
+    const text: string = finder.description.replace(/\s+/g, " ");
+    expect(text).toContain(
+      "These answer 400 `VALIDATION_FAILED`: `classId` with `mine=true` or `inNoClass=true`; `mine=true` with `inNoClass=true`; `classId`, `mine=true` or `inNoClass=true` with `audience=colleagues`; and a `cursor` this list did not give.",
+    );
+    expect(text).toContain("`mine=false` and `inNoClass=false` are the same as leaving them out.");
+    expect(finder.responses["400"]).toEqual({ $ref: "#/components/responses/BadRequest" });
   });
 
   it("is limited to 60 a minute per signed-in user and documents the 429", () => {
