@@ -1758,6 +1758,7 @@ export interface paths {
          *     carries the colleague's id, name, photo, role name and whether the
          *     account is disabled; never an email, never the colleague's other
          *     threads, counts or sign-in times.
+         *     Limited to 60 a minute per signed-in user.
          */
         get: operations["listColleagueThreads"];
         put?: never;
@@ -1791,6 +1792,7 @@ export interface paths {
          *     reads C's thread with A, never A's thread with B, and an Admin
          *     naming a teacher reads the Admin's own (D17). `scope.all` opens no
          *     one else's thread. No attempt cards and no "Seen by".
+         *     Limited to 60 a minute per signed-in user.
          */
         get: operations["getColleagueThread"];
         put?: never;
@@ -16054,6 +16056,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             403: components["responses"]["Forbidden"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     getColleagueThread: {
@@ -16084,6 +16087,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
         };
     };
     postColleagueMessage: {
