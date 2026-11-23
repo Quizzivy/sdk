@@ -1524,9 +1524,14 @@ export interface paths {
          *     opens none (D17, DG-08).
          *
          *     `q` matches the student's and the class's names, accent-insensitively.
-         *     With `q`, the answer also lists, after the threads, up to 20 students
-         *     the caller may start a thread with and has none with, as
-         *     `candidate` rows.
+         *     With `q`, the answer also lists, after the threads, up to 20 enabled
+         *     students the caller has no thread with, whose name or the name of
+         *     one of whose current classes matches, as `candidate` rows: any
+         *     student, in one of the caller's classes, in another teacher's or in
+         *     none (`otherClassNames` tells them apart).
+         *
+         *     Colleague threads are listed by `listColleagueThreads`, and the client
+         *     merges the two lists by `lastMessageAt`.
          *
          *     The rows are under `threads`, not `items`: they mix two kinds, and a
          *     student two teachers teach is rightly in both teachers' lists.
@@ -1552,19 +1557,27 @@ export interface paths {
         /**
          * @description The caller's direct thread with a student, empty until the first
          *     post. `studentId` is a `messaging-peer`: a student the caller has a
-         *     thread with, has taught (now or before), or created. Any other id
-         *     answers 404, an admin's included, and so does the thread of another
-         *     staff member with the same student.
+         *     thread with, or any enabled student, in one of the caller's classes,
+         *     in another teacher's or in none. A disabled student is readable only
+         *     through a thread that exists. Any other id answers 404: a staff
+         *     account (`getColleagueThread` is the thread with a colleague), the
+         *     caller, a disabled student with no thread.
+         *
+         *     The thread is always the caller's own: teacher B naming a student
+         *     reads B's thread with them, never teacher A's, and an Admin reads
+         *     the Admin's own (D17). `scope.all` opens no one else's thread.
          */
         get: operations["getStaffDirectThread"];
         put?: never;
         /**
          * Write to a student
-         * @description The first post makes the thread. A thread that exists stays open to
-         *     both of its participants after the student leaves the caller's
-         *     classes. Writing first needs a tie: the student is, or was, in a
-         *     class of the caller's, or the caller created the account; and the
-         *     student must be enabled and still a student. Not audited (D17).
+         * @description The first post makes the thread. Any staff member who opens the
+         *     teacher workspace may write first to any enabled student, in one of
+         *     their classes, in another teacher's or in none; the student must be
+         *     enabled and still a student. A thread that exists stays open to both
+         *     of its participants whatever classes the student is in. Nobody else
+         *     is told, the student's teacher included: the thread is its two
+         *     participants' (D17). Not audited.
          *
          *     Limited to 30 a minute and 500 a day per staff member.
          */
@@ -1589,7 +1602,10 @@ export interface paths {
         /**
          * Move the caller's read pointer in a direct thread
          * @description The pointer only moves forward. `lastReadMessageId` is checked
-         *     against the thread, so it names no resource of its own.
+         *     against the thread, so it names no resource of its own. `studentId`
+         *     is a `messaging-peer`, as on `getStaffDirectThread`: any enabled
+         *     student may be written to, and the pointer is the caller's own in
+         *     the caller's own thread.
          */
         post: operations["markStaffDirectThreadRead"];
         delete?: never;
@@ -1651,6 +1667,179 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/teacher/messages/recipients": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find a student or a colleague to write to
+         * @description The New message picker. `audience=students` lists every enabled
+         *     student, in one of the caller's classes, in another teacher's or in
+         *     none; `audience=colleagues` lists every enabled account that opens
+         *     the teacher workspace and is not a student, never the caller. An
+         *     account that opens only the Admin console is not a colleague: it
+         *     cannot open Messages. Every staff member who opens the teacher
+         *     workspace gets the same rows; `scope.all` plays no part.
+         *
+         *     Without `q` (the picker just opened) it lists by name; `q` matches
+         *     the name, accent-insensitively (`duc` finds `Đức`). For students,
+         *     one filter at most, the picker's four: none (all students);
+         *     `mine=true`, the students of any current class, not archived, in the
+         *     caller's class scope ("Students in my classes"); `classId`, the
+         *     members of one class in the caller's class scope (one outside it
+         *     answers 404, as an unknown one does); `inNoClass=true`, the students
+         *     in no current class that is not archived. `mine=false` and
+         *     `inNoClass=false` are the same as leaving them out.
+         *
+         *     These answer 400 `VALIDATION_FAILED`: `classId` with `mine=true` or
+         *     `inNoClass=true`; `mine=true` with `inNoClass=true`; `classId`,
+         *     `mine=true` or `inNoClass=true` with `audience=colleagues`; and a
+         *     `cursor` this list did not give.
+         *
+         *     Ordered by name, then id, and paged by a cursor: ask again with
+         *     `cursor` set to `nextCursor`, which is `null` on the last page. A
+         *     row with
+         *     `threadExists` opens that thread; any other opens the empty thread,
+         *     and the first post makes it.
+         *
+         *     This is not a list of owned resources, so its rows are under
+         *     `recipients`, not `items`, and it declares no `x-resource-list`, as
+         *     `searchTeacherDirectory` does not. Leak review: a student row
+         *     carries the id, the name, the photo and the names of the student's
+         *     current classes that are not archived; never an email, a username,
+         *     a birth date, a result, an attempt, a teacher's name or a member
+         *     count. A colleague row carries the id, the name, the photo and the
+         *     role's name; never an email (narrower than
+         *     `searchTeacherDirectory`, whose audience is `content.share`), never
+         *     the colleague's other threads, counts or sign-in times. Class names
+         *     are names only, never an id, so nothing here opens a class outside
+         *     the caller's class scope, and `classId` and `mine` reach only
+         *     classes in the caller's class scope.
+         *
+         *     Limited to 60 a minute per signed-in user.
+         */
+        get: operations["listMessageRecipients"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/colleagues": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The caller's threads with colleagues
+         * @description The Colleagues tab: the caller's threads with other staff members,
+         *     newest activity first. A colleague thread is readable by its two
+         *     participants only; `scope.all` opens none (D17), so an Admin lists
+         *     only the Admin's own. A thread with a colleague whose account is
+         *     now disabled stays listed, with `disabled`.
+         *
+         *     `q` matches the colleague's name, accent-insensitively. With `q`,
+         *     the answer also lists, after the threads, up to 20 enabled
+         *     colleagues the caller has no thread with, as `candidate` rows: an
+         *     account that opens the teacher workspace and is not a student,
+         *     never the caller.
+         *
+         *     The client shows these rows in All too, merged with
+         *     `listStaffThreads`'s by `lastMessageAt`. The rows are under
+         *     `threads`, not `items`, as `listStaffThreads`'s are: a thread is
+         *     rightly in both of its participants' lists. Leak review: a row
+         *     carries the colleague's id, name, photo, role name and whether the
+         *     account is disabled; never an email, never the colleague's other
+         *     threads, counts or sign-in times.
+         */
+        get: operations["listColleagueThreads"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/colleagues/{colleagueId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                colleagueId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        /**
+         * The caller's thread with a colleague
+         * @description The caller's thread with another staff member, empty until the
+         *     first post. `colleagueId` is a `messaging-colleague`: a staff member
+         *     the caller has a thread with, or any enabled account that opens the
+         *     teacher workspace and is not a student. A disabled colleague is
+         *     readable only through a thread that exists. Any other id answers
+         *     404: a student (`getStaffDirectThread` is the thread with a
+         *     student), an account that opens only the Admin console, the caller.
+         *
+         *     The thread is always the caller's own: teacher C naming teacher A
+         *     reads C's thread with A, never A's thread with B, and an Admin
+         *     naming a teacher reads the Admin's own (D17). `scope.all` opens no
+         *     one else's thread. No attempt cards and no "Seen by".
+         */
+        get: operations["getColleagueThread"];
+        put?: never;
+        /**
+         * Write to a colleague
+         * @description The first post makes the thread, one per pair of staff members.
+         *     Either colleague may write first and either may attach a file, as in
+         *     a student's thread: one uploaded with `uploadMessageAttachment`, of
+         *     the same types and size. The colleague must be enabled and still
+         *     open the teacher workspace. The reader is told by a
+         *     `message.received` notification whose target carries `colleagueId`,
+         *     and by email under the same "New message" switch, wait and dedupe
+         *     as a student's thread; it names the sender and no class, never the
+         *     body. Not audited (D17).
+         *
+         *     Limited to 30 a minute and 500 a day per staff member, counted
+         *     apart from `postStaffDirectMessage`'s.
+         */
+        post: operations["postColleagueMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/teacher/messages/colleagues/{colleagueId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                colleagueId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Move the caller's read pointer in a colleague thread
+         * @description The pointer only moves forward, and it is the caller's own in the
+         *     caller's own thread. `lastReadMessageId` is checked against the
+         *     thread, so it names no resource of its own.
+         */
+        post: operations["markColleagueThreadRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/teacher/messages/attachments": {
         parameters: {
             query?: never;
@@ -1662,8 +1851,10 @@ export interface paths {
         put?: never;
         /**
          * Upload a file to send in a message
-         * @description The file waits, unsent, until a post names it; one left unsent for 24
-         *     hours is removed. The type comes from sniffing the content, never
+         * @description The file waits, unsent, until a post names it, in a direct thread, a
+         *     class channel or a colleague thread (`postColleagueMessage`, where
+         *     either colleague may attach); one left unsent for 24 hours is
+         *     removed. The type comes from sniffing the content, never
          *     from the part's `Content-Type` or the extension: PDF, Word (DOCX or
          *     DOC), PNG, JPEG, MP3 or M4A. WebP is refused. An image's header must
          *     declare at most 10000 × 10000 pixels; nothing is decoded further, and
@@ -1696,12 +1887,13 @@ export interface paths {
         /**
          * Mint the download URL of a message's file
          * @description For the participants of the thread whose message holds the file (a
-         *     direct thread's staff member and student, and a class channel's
-         *     readers: staff whose class scope reaches the class, and its
-         *     current members), and its uploader before it is sent. Anyone
-         *     else gets 404, as for a missing id: an admin on a direct
-         *     message's file included, whom `scope.all` does not let into the
-         *     thread. The URL is a credential, so the answer is not stored.
+         *     direct thread's staff member and student, a colleague thread's two
+         *     staff members, and a class channel's readers: staff whose class
+         *     scope reaches the class, and its current members), and its uploader
+         *     before it is sent. Anyone else gets 404, as for a missing id: an
+         *     admin on a direct or colleague message's file included, whom
+         *     `scope.all` does not let into the thread. The URL is a credential,
+         *     so the answer is not stored.
          */
         get: operations["getStaffMessageAttachmentUrl"];
         put?: never;
@@ -4079,9 +4271,10 @@ export interface paths {
          *     of `users.csv` (no password hashes or tokens), `roles.csv`,
          *     `classes.csv` (no join codes), `class_members.csv`, `tests.csv`,
          *     `test_versions.csv`, `assignments.csv`, `attempts.csv`, `leads.csv`,
-         *     `messages_summary.csv` (one row per conversation: its kind, class or
-         *     two participants, message count and first and last message times,
-         *     never a message's text, a file's name or an attachment), with
+         *     `messages_summary.csv` (one row per conversation: its kind, `class`,
+         *     `direct` or `colleague`, its class or its two participants, message
+         *     count and first and last message times, never a message's text, a
+         *     file's name or an attachment), with
          *     `answers.csv` when `includeAnswers` is true, and a `README.txt` in
          *     Vietnamese and English that describes each file. Every CSV is UTF-8
          *     with a byte-order mark and CRLF line ends, and a cell that a
@@ -5615,7 +5808,8 @@ export interface paths {
          *     are in that is not archived, and goes on writing in a thread that
          *     exists after leaving the class or after the class is archived; they
          *     cannot write first to a teacher of a class they left, or of a class
-         *     that is archived.
+         *     that is archived. They reply in any thread a staff member started,
+         *     one who does not teach them included.
          *
          *     Limited to 10 a minute and 200 a day per student.
          */
@@ -7242,8 +7436,11 @@ export interface components {
         Workspace: "teacher" | "admin" | "app";
         /**
          * @description The role the caller holds, on the caller's own document and nowhere
-         *     else, so no payload about another person names a role. `name` is the
-         *     stored name. A client shows a built-in role (`builtinKey` set) by its
+         *     else. Another person's role is named only where a payload needs it:
+         *     the Admin console's accounts (`AdminUserRole`) and a colleague in
+         *     staff Messages (`roleName` and `roleBuiltinKey` on `ColleagueThread`,
+         *     `ColleagueDirectThreadPeer` and `MessageRecipient`), never a
+         *     student's. `name` is the stored name. A client shows a built-in role (`builtinKey` set) by its
          *     localised name while the stored name is still the seeded one, and the
          *     stored name otherwise, as the Roles screen does. Always sent by the
          *     server, and optional in the schema as `preferences` is. It is not the
@@ -7738,10 +7935,12 @@ export interface components {
         StudentRow: {
             /**
              * @description The caller may open a direct thread with this student and post in
-             *     it (`postStaffDirectMessage` would be accepted): an existing thread,
-             *     or a tie (a class of the caller's, now or before, or an account the
-             *     caller created), with the account enabled and still a student.
-             *     `scope.all` does not widen it. The row menu's "Send message" reads it.
+             *     it (`postStaffDirectMessage` would be accepted): any enabled
+             *     student may be written to, in one of the caller's classes, in
+             *     another teacher's or in none, and every staff member who opens the
+             *     teacher workspace gets the same answer, so `scope.all` plays no
+             *     part. False when the account is disabled or no longer a student.
+             *     The row menu's "Send message" reads it.
              */
             canMessage: boolean;
             id: components["schemas"]["Uuid"];
@@ -8389,7 +8588,7 @@ export interface components {
             notify: boolean;
         };
         ClassMember: {
-            /** @description As `StudentRow.canMessage`, for the caller and this member. Another teacher's class read through `scope.all` answers false for its students the caller never taught. */
+            /** @description As `StudentRow.canMessage`, for the caller and this member. Any enabled student may be written to, so another teacher's class read through `scope.all` answers true for its enabled students too. */
             canMessage: boolean;
             userId: components["schemas"]["Uuid"];
             /** @description The same figures G-07 shows, so G-06's roster carries "Bài đã nộp" and "Điểm TB". */
@@ -10826,7 +11025,7 @@ export interface components {
             unreadNotifications: number;
             /** @description Live grants to the caller, the muted count beside "Shared with me". */
             sharedWithMe: number;
-            /** @description Messages past the caller's read pointers, not counting their own, over their threads. The nav shows "99+" above 99. */
+            /** @description Messages past the caller's read pointers, not counting their own, over their threads (class channels, direct threads with students and colleague threads). The nav shows "99+" above 99. */
             unreadMessages: number;
         };
         ClosingAssignment: {
@@ -11407,7 +11606,7 @@ export interface components {
          *     | `class.teacher_changed` | a teacher | `className`, and `teacherName` for the class's previous teacher |
          *     | `content.shared` | a teacher | `sharerName`, `contentKind`, `name`, `access`, and `message` when the sharer wrote one |
          *     | `test.published_by_collaborator` | a teacher | `editorName`, `title`, `version` |
-         *     | `message.received` | a teacher | `senderName`, `count`, `excerpt` |
+         *     | `message.received` | a teacher | `senderName`, `count`, `excerpt`, for a student's thread or a colleague's; never `className` |
          *     | `message.from_teacher` | a student | `senderName`, `count`, `excerpt`, and `className` for an announcement |
          *     | `summary.weekly` | a teacher | `count`, `toGrade`, `flagged`, `classNames` |
          *
@@ -11445,8 +11644,9 @@ export interface components {
          * @description One switch of the notification settings. `attempt.submitted`,
          *     `attempt.flagged` and `assignment.closing` are the teacher's;
          *     `assignment.due_soon` and `result.ready` the student's;
-         *     `message.received` both ("New message" for a teacher, "Messages from
-         *     teachers" for a student). A switch governs the kind of the same name,
+         *     `message.received` both ("New message" for a teacher, covering a
+         *     student's and a colleague's messages, "Messages from teachers" for a
+         *     student). A switch governs the kind of the same name,
          *     `assignment.due_soon` also governs `assignment.opened` and
          *     `assignment.extended`, and `message.received` also governs
          *     `message.from_teacher`. `summary.weekly` is the teacher's Monday
@@ -11524,6 +11724,8 @@ export interface components {
          *     `route`, never a URL. `assignmentId` is present for `assignment` and
          *     `studentAssignment`, `attemptId` for `attempt` and `result`, and
          *     `testId` for `test`; any of them may accompany any other route.
+         *     `messages` carries `studentId` for a direct thread or `colleagueId`
+         *     for a colleague thread, never both.
          */
         NotificationTarget: {
             /**
@@ -11541,6 +11743,8 @@ export interface components {
             testId?: components["schemas"]["Uuid"];
             /** @description `messages`: the direct thread with this student. */
             studentId?: components["schemas"]["Uuid"];
+            /** @description `messages`: the colleague thread with this staff member. Present on a `message.received` item for a colleague thread, in place of `studentId`. */
+            colleagueId?: components["schemas"]["Uuid"];
             /** @description `studentMessages`: the direct thread with this teacher. */
             teacherId?: components["schemas"]["Uuid"];
             /** @description `studentMessages`: the channel of this class. */
@@ -11625,9 +11829,13 @@ export interface components {
          *     name and `studentCount` its active students. A direct row's `title` is
          *     the student's name and `classNames` the caller's classes the student
          *     is in: empty, with `former`, when the student was in one of the
-         *     caller's classes and is in none now ("Former student"). A `candidate`
-         *     is a student the caller may write to and has no thread with yet,
-         *     listed only for a search: nothing exists until the first post.
+         *     caller's classes and is in none now ("Former student").
+         *     `otherClassNames` are the student's other current classes, so a
+         *     student the caller does not teach reads "{classes}", and one in no
+         *     class "In no class". A `candidate` is a student the caller may write
+         *     to and has no thread with yet, listed only for a search: nothing
+         *     exists until the first post. Colleague threads are not listed here
+         *     (`listColleagueThreads`).
          */
         StaffThread: {
             thread: components["schemas"]["StaffThreadRef"];
@@ -11635,6 +11843,13 @@ export interface components {
             /** @description A direct row's student photo, a presigned GET valid 24 hours; `null` for a class or when there is none. */
             avatarUrl: string | null;
             classNames: string[];
+            /**
+             * @description A direct row's or a candidate's student: the names of their
+             *     current classes that are not archived and that the caller does not
+             *     teach. Names only, never an id, so nothing opens a class outside
+             *     the caller's scope. Empty on a class row.
+             */
+            otherClassNames: string[];
             /** @description A class row's active students; `null` on a direct row. */
             studentCount: number | null;
             former: boolean;
@@ -11711,6 +11926,14 @@ export interface components {
             avatarUrl: string | null;
             /** @description The caller's classes the student is in now, for Details. */
             classes: components["schemas"]["PersonRef"][];
+            /**
+             * @description The names of the student's current classes that are not archived
+             *     and that the caller does not teach, for the header's sub-line and
+             *     Details. Names only, never an id: nothing here opens a class
+             *     outside the caller's scope. Both this and `classes` are empty for
+             *     a student in no class.
+             */
+            otherClassNames: string[];
             /** @description The student was in a class of the caller's and is in none now. */
             former: boolean;
             disabled: boolean;
@@ -11744,6 +11967,95 @@ export interface components {
             nextBefore: string | null;
             /** Format: uuid */
             latestId: string | null;
+        };
+        /**
+         * @description A row of the staff Messages list's Colleagues tab: the caller's thread
+         *     with another staff member, titled with their name, with their role's
+         *     name as the sub-line. The client merges these rows into All by
+         *     `lastMessageAt`, newest first. A `candidate` is a colleague the caller
+         *     may write to and has no thread with yet, listed only for a search:
+         *     nothing exists until the first post. Never an email (the leak review
+         *     of `listColleagueThreads`).
+         */
+        ColleagueThread: {
+            colleagueId: components["schemas"]["Uuid"];
+            /** @description The colleague's name. */
+            title: string;
+            /** @description The colleague's photo, a presigned GET valid 24 hours; `null` when there is none. */
+            avatarUrl: string | null;
+            /** @description The colleague's role, by its stored name. */
+            roleName: string;
+            /**
+             * @description The colleague's built-in role, `null` for a custom one. A client
+             *     shows a built-in role by its localised name while `roleName` is
+             *     still the seeded one, as `CurrentUserRole` says.
+             */
+            roleBuiltinKey: components["schemas"]["BuiltinRoleKey"] | null;
+            candidate: boolean;
+            /** @description The colleague's account is disabled: the thread stays readable and takes no post. */
+            disabled: boolean;
+            /**
+             * Format: date-time
+             * @description `null` for a candidate.
+             */
+            lastMessageAt: string | null;
+            preview: components["schemas"]["MessagePreview"] | null;
+            /** @description Messages past the caller's read pointer, not counting their own. */
+            unread: number;
+        };
+        /** @description The other staff member of a colleague thread, as its header and Details show them. Never an email. */
+        ColleagueDirectThreadPeer: {
+            id: components["schemas"]["Uuid"];
+            name: string;
+            avatarUrl: string | null;
+            /** @description The colleague's role, by its stored name. */
+            roleName: string;
+            /** @description As `ColleagueThread.roleBuiltinKey`. */
+            roleBuiltinKey: components["schemas"]["BuiltinRoleKey"] | null;
+            disabled: boolean;
+            /** @description A post would be accepted. False when the account is disabled or no longer opens the teacher workspace; the composer then gives way to a sentence. */
+            canPost: boolean;
+        };
+        /**
+         * @description A thread between two staff members. Both sides are staff, so every
+         *     message's `sender.side` is `staff`. It carries no attempt cards
+         *     (`contextEvents`) and no "Seen by".
+         */
+        ColleagueDirectThread: {
+            colleague: components["schemas"]["ColleagueDirectThreadPeer"];
+            /** @description Oldest first. */
+            messages: components["schemas"]["StaffMessage"][];
+            /** Format: uuid */
+            nextBefore: string | null;
+            /** Format: uuid */
+            latestId: string | null;
+        };
+        /**
+         * @description A row of the New message picker (`listMessageRecipients`): a student
+         *     or a colleague the caller may write to. A student row shows the
+         *     student's current class names, the caller's own first, or "In no
+         *     class" when both lists are empty; a colleague row shows the role's
+         *     name. Never an email, a username, a teacher's name, a member count
+         *     or a result.
+         */
+        MessageRecipient: {
+            /** @description The student's id, which `getStaffDirectThread` takes as `studentId`, or the colleague's, which `getColleagueThread` takes as `colleagueId`. */
+            id: components["schemas"]["Uuid"];
+            name: string;
+            /** @description The photo, a presigned GET valid 24 hours; `null` when there is none. */
+            avatarUrl: string | null;
+            /** @description A student's current classes that are not archived and that the caller teaches, by name. Empty for a colleague. */
+            classNames: string[];
+            /** @description A student's other current classes that are not archived, by name only, never an id. Empty for a colleague. */
+            otherClassNames: string[];
+            /** @description A colleague's role, by its stored name; `null` for a student. */
+            roleName: string | null;
+            /** @description As `ColleagueThread.roleBuiltinKey` for a colleague; `null` for a student. */
+            roleBuiltinKey: components["schemas"]["BuiltinRoleKey"] | null;
+            /** @description The caller already has a thread with this person; the row opens it. */
+            threadExists: boolean;
+            /** @description A post would be accepted now. */
+            canPost: boolean;
         };
         /** @description A message is text, a file, or both; one of the two is required. */
         StaffMessagePost: {
@@ -11781,9 +12093,9 @@ export interface components {
          *     `former` when the teacher taught the student and teaches them in no
          *     such class now, having left them all or seen them archived ("Former
          *     teacher"). It is empty without `former` when the staff member never
-         *     taught the student (one who created the student's account and wrote
-         *     first): the subtitle is then "Your teacher" alone, with no " · " and
-         *     nothing after it. A class row is a channel with at least one post
+         *     taught the student (any staff member may write first to any
+         *     student): the subtitle is then "Teacher at the centre" alone, the
+         *     same for an Admin, with no " · " and nothing after it. A class row is a channel with at least one post
          *     ("Class announcements"), titled with the class's name.
          */
         StudentThread: {
@@ -11800,7 +12112,7 @@ export interface components {
         /**
          * @description The thread's header. `classNames` and `former` read as they do on the
          *     thread's `StudentThread` row: "Your teacher · {classes}", "Former
-         *     teacher", or "Your teacher" alone when both are empty and false.
+         *     teacher", or "Teacher at the centre" when both are empty and false.
          */
         StudentDirectThreadTeacher: {
             id: components["schemas"]["Uuid"];
@@ -15510,7 +15822,7 @@ export interface operations {
             };
             400: components["responses"]["BadRequest"];
             404: components["responses"]["NotFound"];
-            /** @description `MESSAGING_NOT_ALLOWED` — a messaging peer whose account is disabled or no longer a student. The thread stays readable. */
+            /** @description `MESSAGING_NOT_ALLOWED` — a messaging peer whose account is disabled or no longer a student. The thread stays readable. Any enabled student may be written to. */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -15653,6 +15965,189 @@ export interface operations {
             header?: never;
             path: {
                 classId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageReadPointer"];
+            };
+        };
+        responses: {
+            204: components["responses"]["NoContent"];
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `VALIDATION_FAILED` — the message is not in this thread. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    listMessageRecipients: {
+        parameters: {
+            query: {
+                audience: "students" | "colleagues";
+                /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
+                q?: components["parameters"]["Query"];
+                /** @description `students` only: the members of this class, one in the caller's class scope. */
+                classId?: components["schemas"]["Uuid"];
+                /** @description `students` only: true keeps the students of any current class, not archived, in the caller's class scope. Not with `classId` or `inNoClass=true`; false is the same as leaving it out. */
+                mine?: boolean;
+                /** @description `students` only: true keeps the students in no current class that is not archived. Not with `classId` or `mine=true`; false is the same as leaving it out. */
+                inNoClass?: boolean;
+                /** @description The next page, as `nextCursor` gave it. Opaque. */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        recipients: components["schemas"]["MessageRecipient"][];
+                        /** @description The next page's `cursor`; `null` on the last page. */
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+            404: components["responses"]["NotFound"];
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    listColleagueThreads: {
+        parameters: {
+            query?: {
+                /** @description Free-text search. Accent-insensitive (D-11) — `phat am` matches `phát âm`. */
+                q?: components["parameters"]["Query"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        threads: components["schemas"]["ColleagueThread"][];
+                    };
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            403: components["responses"]["Forbidden"];
+        };
+    };
+    getColleagueThread: {
+        parameters: {
+            query?: {
+                /** @description Older than this message, the page `nextBefore` gave. */
+                before?: components["schemas"]["Uuid"];
+                /** @description Newer than this message, for the open thread's poll. Not with `before`. */
+                after?: components["schemas"]["Uuid"];
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                colleagueId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ColleagueDirectThread"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+        };
+    };
+    postColleagueMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                colleagueId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffMessagePost"];
+            };
+        };
+        responses: {
+            /** @description `clientId` repeats: the message it made. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            /** @description Sent. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffMessage"];
+                };
+            };
+            400: components["responses"]["BadRequest"];
+            404: components["responses"]["NotFound"];
+            /** @description `MESSAGING_NOT_ALLOWED` — a colleague whose account is disabled or no longer opens the teacher workspace. The thread stays readable. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            /** @description `VALIDATION_FAILED` — neither a body nor a file, or `clientId` already made a message in another thread (`details.clientId`). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+            429: components["responses"]["TooManyRequests"];
+        };
+    };
+    markColleagueThreadRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                colleagueId: components["schemas"]["Uuid"];
             };
             cookie?: never;
         };
